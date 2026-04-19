@@ -6,7 +6,7 @@ import { getFilledSocials } from '@/lib/socials'
 import { SI } from '@/components/BusinessCard'
 import BusinessCard from '@/components/BusinessCard'
 import type { Card } from '@/lib/types'
-import { Globe, Mail, Phone } from 'lucide-react'
+import { Mail, Phone } from 'lucide-react'
 
 async function getCard(handle: string): Promise<Card | null> {
   const { data } = await supabase

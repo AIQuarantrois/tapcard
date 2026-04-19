@@ -804,7 +804,7 @@ export default function TapCardApp() {
                     <div style={{ textAlign:'center', padding:'10px 0 4px' }}>
                       <div style={{ fontFamily:CG, fontSize:22, fontWeight:600, color:T.t1, marginBottom:6 }}>Lien de partage</div>
                       <div style={{ fontFamily:OT, fontSize:13, color:T.t3, lineHeight:1.65, fontWeight:300 }}>
-                        Partagez par n'importe quel canal.<br/>Aucune installation côté destinataire.
+                        Partagez par n&apos;importe quel canal.<br/>Aucune installation côté destinataire.
                       </div>
                     </div>
                     <div style={{ background:T.s2, border:`1px solid ${T.sep}`, borderRadius:12,
@@ -849,7 +849,7 @@ export default function TapCardApp() {
                     <div style={{ textAlign:'center' }}>
                       <div style={{ fontFamily:CG, fontSize:22, fontWeight:600, color:T.t1, marginBottom:7 }}>Partage NFC</div>
                       <div style={{ fontFamily:OT, fontSize:13, color:T.t3, lineHeight:1.65, fontWeight:300 }}>
-                        Approchez deux téléphones.<br/>L'échange se fait instantanément.
+                        Approchez deux téléphones.<br/>L&apos;échange se fait instantanément.
                       </div>
                     </div>
                     <div style={{ background:T.s1, borderRadius:12, padding:'14px 16px', width:'100%',
@@ -964,7 +964,7 @@ export default function TapCardApp() {
                   <div>
                     <div style={{ fontSize:12, color:T.t3, fontWeight:300, marginBottom:2 }}>Rencontre enregistrée</div>
                     <div style={{ fontSize:15, color:T.t1, fontWeight:500 }}>Paris Fintech Forum</div>
-                    <div style={{ fontSize:11, color:T.t4, marginTop:1, fontWeight:300 }}>Aujourd'hui · 14h23</div>
+                    <div style={{ fontSize:11, color:T.t4, marginTop:1, fontWeight:300 }}>Aujourd&apos;hui · 14h23</div>
                   </div>
                 </div>
               </Row>

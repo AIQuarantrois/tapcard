@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { handle: rawHandle, ...rest } = body
 
-    let base = (rawHandle || 'card').toLowerCase().replace(/[^a-z0-9-]/g, '') || 'card'
+    const base = (rawHandle || 'card').toLowerCase().replace(/[^a-z0-9-]/g, '') || 'card'
     let finalHandle = base
     let attempt = 0
 
