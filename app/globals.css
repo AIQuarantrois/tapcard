@@ -2,26 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+::-webkit-scrollbar { display: none }
+input, button, textarea { font-family: inherit }
+input { outline: none }
+button { cursor: pointer; border: none; background: none }
+
+body { overflow-x: hidden }
+
+@keyframes logoIn {
+  0%   { opacity:0; transform:scale(.5) rotate(-8deg) }
+  75%  { opacity:1; transform:scale(1.04) rotate(1deg) }
+  100% { opacity:1; transform:scale(1) rotate(0) }
+}
+@keyframes fu {
+  from { opacity:0; transform:translateY(18px) }
+  to   { opacity:1; transform:translateY(0) }
+}
+@keyframes sheetUp {
+  from { transform:translateY(100%) }
+  to   { transform:translateY(0) }
+}
+@keyframes fadeIn {
+  from { opacity:0 }
+  to   { opacity:1 }
+}
+@keyframes float {
+  0%,100% { transform:translateY(0) rotate(-1deg) }
+  50%     { transform:translateY(-9px) rotate(-1deg) }
+}
+@keyframes scanline {
+  0%   { top:10% }
+  100% { top:90% }
+}
+@keyframes pulse {
+  0%   { transform:scale(1); opacity:.4 }
+  100% { transform:scale(2.1); opacity:0 }
+}
+@keyframes expandDown {
+  from { opacity:0; max-height:0 }
+  to   { opacity:1; max-height:500px }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+.logo-a { animation:logoIn .85s cubic-bezier(.34,1.56,.64,1) both }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
+.fu1 { animation:fu .46s 0s    ease both }
+.fu2 { animation:fu .46s .07s  ease both }
+.fu3 { animation:fu .46s .14s  ease both }
+.fu4 { animation:fu .46s .21s  ease both }
+.fu5 { animation:fu .46s .28s  ease both }
+.fu6 { animation:fu .46s .35s  ease both }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+.su  { animation:sheetUp  .34s cubic-bezier(.32,.72,0,1) both }
+.fi  { animation:fadeIn   .22s ease both }
+.flt { animation:float    7s ease-in-out infinite }
+
+.scan {
+  animation:scanline 1.9s ease-in-out infinite alternate;
+  position:absolute; left:0; right:0; height:1.5px; pointer-events:none;
 }
+.exp  { animation:expandDown .3s ease both; overflow:hidden }
+
+.press:active { opacity:.72 !important }
+.tap:active   { background:rgba(128,128,128,.08) !important }
