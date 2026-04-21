@@ -72,16 +72,25 @@ function Row({ children, last=false, onTap, theme }: { children: React.ReactNode
   )
 }
 
-function TextRow({ value, onChange, type='text', placeholder, last=false, prefix, suffix, theme, autoComplete }:
+function TextRow({ value, onChange, type='text', placeholder, last=false, prefix, suffix, theme, autoComplete, maxLength }:
   { value:string; onChange:(v:string)=>void; type?:string; placeholder:string;
-    last?:boolean; prefix?: React.ReactNode; suffix?: React.ReactNode; theme: Theme; autoComplete?: string }) {
+    last?:boolean; prefix?: React.ReactNode; suffix?: React.ReactNode; theme: Theme; autoComplete?: string; maxLength?: number }) {
+  const nearLimit = maxLength !== undefined && value.length >= Math.floor(maxLength * 0.8)
+  const atLimit   = maxLength !== undefined && value.length >= maxLength
   return (
     <Row last={last} theme={theme}>
       <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:10 }}>
         {prefix && <div style={{ color:theme.t3, flexShrink:0, display:'flex', alignItems:'center' }}>{prefix}</div>}
-        <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-          autoComplete={autoComplete}
+        <input type={type} value={value}
+          onChange={e => onChange(maxLength ? e.target.value.slice(0, maxLength) : e.target.value)}
+          placeholder={placeholder} autoComplete={autoComplete}
           style={{ flex:1, background:'transparent', border:'none', outline:'none', color:theme.t1, fontSize:15, fontFamily:OT, fontWeight:400 }}/>
+        {nearLimit && maxLength && (
+          <span style={{ fontSize:10, fontFamily:OT, flexShrink:0, transition:'color .2s',
+            color: atLimit ? theme.red : theme.t3 }}>
+            {value.length}/{maxLength}
+          </span>
+        )}
         {suffix}
       </div>
     </Row>
@@ -550,12 +559,14 @@ export default function TapCardApp() {
           </div>
         </div>
       </div>
-      <div style={{ position:'absolute', bottom:48, display:'flex', gap:6 }}>
-        {[0,1,2].map(i => (
-          <div key={i} style={{ width:i===0?20:5, height:4, borderRadius:2,
-            background:i===0?grad.ac:T.t4, transition:'all .3s' }}/>
-        ))}
-      </div>
+      {/* #10 CTA conditionnel — masqué si déjà connecté */}
+      {!authUser && (
+        <button onClick={() => setScreen('auth')}
+          style={{ position:'absolute', bottom:52, fontFamily:OT, fontSize:13, fontWeight:400,
+            color:T.t3, background:'none', border:'none', cursor:'pointer', letterSpacing:.1 }}>
+          J'ai déjà une carte →
+        </button>
+      )}
     </div>
   )
 
@@ -571,13 +582,33 @@ export default function TapCardApp() {
 
     return (
       <div style={{ minHeight:'100vh', background:T.bg, fontFamily:OT, overflowY:'auto', transition:'background .3s' }}>
-        <div style={{ padding:'52px 20px 0', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:28 }}>
+        {/* Barre de progression (#6) */}
+        {!isEditing && (() => {
+          const steps = [
+            form.name.trim().length > 0,
+            !!(form.email.trim() || form.phone.trim()),
+            !!(form.handle.trim() || form.linkedin.trim() || Object.values(socials).some(v => v?.trim())),
+          ]
+          const done = steps.filter(Boolean).length
+          return (
+            <div style={{ padding:'48px 20px 0' }}>
+              <div style={{ display:'flex', gap:5, marginBottom:20 }}>
+                {steps.map((ok, i) => (
+                  <div key={i} style={{ flex:1, height:3, borderRadius:2, transition:'background .4s',
+                    background: ok ? grad.ac : (i <= done ? T.sepS : T.sep) }}/>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+
+        <div style={{ padding: isEditing ? '52px 20px 0' : '0 20px 0', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:28 }}>
           <div>
             <div style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5, lineHeight:1 }}>
-              {isEditing ? 'Modifier ma carte' : 'Nouvelle carte'}
+              {isEditing ? 'Modifier ma carte' : 'Créez votre carte'}
             </div>
             <div style={{ fontFamily:OT, fontSize:13, fontWeight:300, color:T.t3, marginTop:4 }}>
-              {isEditing ? 'Modifiez vos informations' : '30 secondes · aucune inscription'}
+              {isEditing ? 'Modifiez vos informations' : 'Partagez d\'un geste · aucune inscription'}
             </div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -629,9 +660,9 @@ export default function TapCardApp() {
                   {!logoUrl && <ChevronRight size={16} color={T.t4}/>}
                 </div>
               </Row>
-              <TextRow placeholder="Prénom et Nom" value={form.name}    onChange={v => setForm(p=>({...p,name:v}))} theme={T} autoComplete="name"/>
-              <TextRow placeholder="Poste / Titre"  value={form.role}    onChange={v => setForm(p=>({...p,role:v}))} theme={T} autoComplete="organization-title"/>
-              <TextRow placeholder="Entreprise"      value={form.company} onChange={v => setForm(p=>({...p,company:v}))} last theme={T} autoComplete="organization"/>
+              <TextRow placeholder="Prénom et Nom" value={form.name}    onChange={v => setForm(p=>({...p,name:v}))} theme={T} autoComplete="name"               maxLength={40}/>
+              <TextRow placeholder="Poste / Titre"  value={form.role}    onChange={v => setForm(p=>({...p,role:v}))} theme={T} autoComplete="organization-title" maxLength={50}/>
+              <TextRow placeholder="Entreprise"      value={form.company} onChange={v => setForm(p=>({...p,company:v}))} last theme={T} autoComplete="organization" maxLength={60}/>
             </Section>
           </div>
 
