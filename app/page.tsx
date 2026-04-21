@@ -97,8 +97,9 @@ export default function TapCardApp() {
   const [stab,        setStab]        = useState('qr')
   const [copied,      setCopied]      = useState(false)
   const [nav,         setNav]         = useState<Nav>('card')
-  const [creating,    setCreating]    = useState(false)
-  const [isEditing,   setIsEditing]   = useState(false)
+  const [creating,      setCreating]      = useState(false)
+  const [isEditing,     setIsEditing]     = useState(false)
+  const [handleStatus,  setHandleStatus]  = useState<null | 'checking' | 'ok' | 'taken'>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const T = THEMES[dark ? 'dark' : 'light']
@@ -136,6 +137,20 @@ export default function TapCardApp() {
     const t = setTimeout(() => setScreen('onboarding'), 2700)
     return () => clearTimeout(t)
   }, [screen])
+
+  /* Handle availability check */
+  useEffect(() => {
+    const h = form.handle.trim()
+    if (!h || (isEditing && h === user?.handle)) { setHandleStatus(null); return }
+    setHandleStatus('checking')
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/cards?handle=${h}`)
+        setHandleStatus(r.ok ? 'taken' : 'ok')
+      } catch { setHandleStatus(null) }
+    }, 500)
+    return () => clearTimeout(t)
+  }, [form.handle, isEditing, user?.handle])
 
   /* ── Helpers ── */
   const doCreate = async () => {
@@ -230,6 +245,14 @@ export default function TapCardApp() {
   }
 
   const doCopy = () => { setCopied(true); setTimeout(() => setCopied(false), 2200) }
+
+  const doNativeShare = async (handle: string, name: string) => {
+    const url = `${window.location.origin}/${handle}`
+    if (navigator.share) {
+      try { await navigator.share({ title: name, text: 'Ma carte TapCard', url }); return } catch {}
+    }
+    setShare(true)
+  }
   const setSoc = (id: string, v: string) => setSocials(p => ({ ...p, [id]:v }))
 
   const handleLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -495,7 +518,7 @@ export default function TapCardApp() {
           <div className="fu5">
             <Section label="Lien public" footer={`→ tapcard.io/${form.handle || (form.name.split(' ')[0]||'vous').toLowerCase()}`} theme={T}>
               <Row last theme={T}>
-                <div style={{ display:'flex', alignItems:'center', minHeight:46 }}>
+                <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:8 }}>
                   <span style={{ fontSize:15, color:T.t3, flexShrink:0, fontFamily:OT }}>tapcard.io/</span>
                   <input type="text"
                     placeholder={(form.name.split(' ')[0]||'vous').toLowerCase()}
@@ -503,6 +526,9 @@ export default function TapCardApp() {
                     onChange={e => setForm(p=>({...p,handle:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')}))}
                     style={{ flex:1, background:'transparent', border:'none', color:T.blue,
                       fontSize:15, fontFamily:OT, fontWeight:500 }}/>
+                  {handleStatus === 'checking' && <span style={{ fontSize:11, color:T.t3, flexShrink:0 }}>…</span>}
+                  {handleStatus === 'ok'       && <span style={{ fontSize:12, color:'#22c55e', flexShrink:0, fontWeight:500 }}>✓</span>}
+                  {handleStatus === 'taken'    && <span style={{ fontSize:11, color:T.red,    flexShrink:0, fontWeight:500 }}>Déjà pris</span>}
                 </div>
               </Row>
             </Section>
@@ -686,7 +712,7 @@ export default function TapCardApp() {
                 <div style={{ position:'relative' }}>
                   <div style={{ position:'absolute', inset:-10, borderRadius:22,
                     background:g.sh.replace('80','30'), animation:'pulse 2.4s ease-out infinite' }}/>
-                  <button onClick={() => setShare(true)} className="press" style={{
+                  <button onClick={() => doNativeShare(u.handle, u.name)} className="press" style={{
                     position:'relative', display:'flex', alignItems:'center', justifyContent:'center', gap:10,
                     background:g.css, borderRadius:14, padding:'15px', color:'#fff',
                     fontSize:15, fontWeight:600, fontFamily:OT,
