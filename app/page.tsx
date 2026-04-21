@@ -72,15 +72,16 @@ function Row({ children, last=false, onTap, theme }: { children: React.ReactNode
   )
 }
 
-function TextRow({ value, onChange, type='text', placeholder, last=false, prefix, suffix, theme }:
+function TextRow({ value, onChange, type='text', placeholder, last=false, prefix, suffix, theme, autoComplete }:
   { value:string; onChange:(v:string)=>void; type?:string; placeholder:string;
-    last?:boolean; prefix?: React.ReactNode; suffix?: React.ReactNode; theme: Theme }) {
+    last?:boolean; prefix?: React.ReactNode; suffix?: React.ReactNode; theme: Theme; autoComplete?: string }) {
   return (
     <Row last={last} theme={theme}>
       <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:10 }}>
         {prefix && <div style={{ color:theme.t3, flexShrink:0, display:'flex', alignItems:'center' }}>{prefix}</div>}
         <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-          style={{ flex:1, background:'transparent', border:'none', color:theme.t1, fontSize:15, fontFamily:OT, fontWeight:400 }}/>
+          autoComplete={autoComplete}
+          style={{ flex:1, background:'transparent', border:'none', outline:'none', color:theme.t1, fontSize:15, fontFamily:OT, fontWeight:400 }}/>
         {suffix}
       </div>
     </Row>
@@ -121,6 +122,17 @@ export default function TapCardApp() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const T = THEMES[dark ? 'dark' : 'light']
+
+  /* Auto-detect country from browser locale (runs once, only if user hasn't loaded a card) */
+  useEffect(() => {
+    try {
+      const lang = navigator.language || ''          // e.g. "fr-FR", "en-US", "ar-MA"
+      const region = lang.split('-')[1]?.toUpperCase() // "FR", "US", "MA" …
+      if (!region) return
+      const match = COUNTRIES.find(c => c.code === region)
+      if (match) setCountry(match)
+    } catch { /* ignore */ }
+  }, [])
 
   /* Restore session from localStorage */
   useEffect(() => {
@@ -440,12 +452,12 @@ export default function TapCardApp() {
         {showCustom && (
           <div className="exp" style={{ padding:'14px 16px 16px' }}>
             <div style={{ fontSize:11, fontFamily:OT, color:T.t3, marginBottom:10 }}>Dégradé personnalisé</div>
-            <div style={{ display:'flex', gap:10, alignItems:'flex-end', marginBottom:12 }}>
+            <div style={{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:12 }}>
               {/* Color 1 */}
-              <div style={{ flex:1 }}>
+              <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:11, color:T.t3, fontFamily:OT, marginBottom:5 }}>Couleur 1</div>
-                <div style={{ display:'flex', alignItems:'center', gap:8, background:T.s2,
-                  borderRadius:9, padding:'8px 10px', border:`1px solid ${T.sep}` }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6, background:T.s2,
+                  borderRadius:9, padding:'8px 10px', border:`1px solid ${T.sep}`, minWidth:0 }}>
                   <div style={{ position:'relative', width:22, height:22, borderRadius:6,
                     background:customC1, boxShadow:`0 2px 8px ${customC1}80`, overflow:'hidden', flexShrink:0 }}>
                     <input type="color" value={customC1} onChange={e => setCustomC1(e.target.value)}
@@ -453,16 +465,16 @@ export default function TapCardApp() {
                   </div>
                   <input type="text" value={customC1}
                     onChange={e => /^#[0-9A-Fa-f]{0,6}$/.test(e.target.value) && setCustomC1(e.target.value)}
-                    style={{ flex:1, background:'transparent', border:'none', color:T.t1,
-                      fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:500 }}/>
+                    style={{ flex:1, minWidth:0, background:'transparent', border:'none', outline:'none', color:T.t1,
+                      fontSize:12, fontFamily:"'Courier New',monospace", fontWeight:500, width:'100%' }}/>
                 </div>
               </div>
-              <div style={{ color:T.t4, flexShrink:0, paddingBottom:10 }}>→</div>
+              <div style={{ color:T.t4, flexShrink:0, paddingBottom:10, fontSize:14 }}>→</div>
               {/* Color 2 */}
-              <div style={{ flex:1 }}>
+              <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:11, color:T.t3, fontFamily:OT, marginBottom:5 }}>Couleur 2</div>
-                <div style={{ display:'flex', alignItems:'center', gap:8, background:T.s2,
-                  borderRadius:9, padding:'8px 10px', border:`1px solid ${T.sep}` }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6, background:T.s2,
+                  borderRadius:9, padding:'8px 10px', border:`1px solid ${T.sep}`, minWidth:0 }}>
                   <div style={{ position:'relative', width:22, height:22, borderRadius:6,
                     background:customC2, boxShadow:`0 2px 8px ${customC2}80`, overflow:'hidden', flexShrink:0 }}>
                     <input type="color" value={customC2} onChange={e => setCustomC2(e.target.value)}
@@ -470,8 +482,8 @@ export default function TapCardApp() {
                   </div>
                   <input type="text" value={customC2}
                     onChange={e => /^#[0-9A-Fa-f]{0,6}$/.test(e.target.value) && setCustomC2(e.target.value)}
-                    style={{ flex:1, background:'transparent', border:'none', color:T.t1,
-                      fontSize:13, fontFamily:"'Courier New',monospace", fontWeight:500 }}/>
+                    style={{ flex:1, minWidth:0, background:'transparent', border:'none', outline:'none', color:T.t1,
+                      fontSize:12, fontFamily:"'Courier New',monospace", fontWeight:500, width:'100%' }}/>
                 </div>
               </div>
             </div>
@@ -604,9 +616,9 @@ export default function TapCardApp() {
                   {!logoUrl && <ChevronRight size={16} color={T.t4}/>}
                 </div>
               </Row>
-              <TextRow placeholder="Prénom et Nom" value={form.name}    onChange={v => setForm(p=>({...p,name:v}))} theme={T}/>
-              <TextRow placeholder="Poste / Titre"  value={form.role}    onChange={v => setForm(p=>({...p,role:v}))} theme={T}/>
-              <TextRow placeholder="Entreprise"      value={form.company} onChange={v => setForm(p=>({...p,company:v}))} last theme={T}/>
+              <TextRow placeholder="Prénom et Nom" value={form.name}    onChange={v => setForm(p=>({...p,name:v}))} theme={T} autoComplete="name"/>
+              <TextRow placeholder="Poste / Titre"  value={form.role}    onChange={v => setForm(p=>({...p,role:v}))} theme={T} autoComplete="organization-title"/>
+              <TextRow placeholder="Entreprise"      value={form.company} onChange={v => setForm(p=>({...p,company:v}))} last theme={T} autoComplete="organization"/>
             </Section>
           </div>
 
@@ -614,7 +626,7 @@ export default function TapCardApp() {
           <div className="fu4">
             <Section label="Contact" theme={T}>
               <TextRow type="email" placeholder="Email professionnel" value={form.email}
-                onChange={v => setForm(p=>({...p,email:v}))} prefix={<Mail size={15} strokeWidth={1.5}/>} theme={T}/>
+                onChange={v => setForm(p=>({...p,email:v}))} prefix={<Mail size={15} strokeWidth={1.5}/>} theme={T} autoComplete="email"/>
               <Row last theme={T}>
                 <div style={{ display:'flex', alignItems:'center', minHeight:46 }}>
                   <button onClick={() => setShowCountry(true)} style={{
@@ -626,7 +638,8 @@ export default function TapCardApp() {
                   </button>
                   <input type="tel" placeholder="Numéro de téléphone" value={form.phone}
                     onChange={e => setForm(p=>({...p,phone:e.target.value}))}
-                    style={{ flex:1, background:'transparent', border:'none', color:T.t1,
+                    autoComplete="tel-national"
+                    style={{ flex:1, background:'transparent', border:'none', outline:'none', color:T.t1,
                       fontSize:15, fontFamily:OT, paddingLeft:12 }}/>
                 </div>
               </Row>
