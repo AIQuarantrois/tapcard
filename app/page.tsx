@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   X, Copy, Check, ArrowLeft, Share2, Users, Settings,
-  Eye, ChevronRight, ChevronDown, Mail, Wifi, Search, Phone, Sun, Moon,
+  Eye, ChevronRight, ChevronDown, Mail, Wifi, Search, Sun, Moon,
 } from 'lucide-react'
 import BusinessCard, { SI } from '@/components/BusinessCard'
 import { supabaseBrowser } from '@/lib/supabase-browser'
@@ -17,7 +17,7 @@ import type { Country } from '@/lib/countries'
 const CG = 'var(--font-cg), Georgia, serif'
 const OT = 'var(--font-ot), system-ui, sans-serif'
 
-type Screen = 'splash' | 'onboarding' | 'mycard' | 'receive' | 'auth'
+type Screen = 'splash' | 'onboarding' | 'mycard' | 'auth'
 type Nav    = 'card' | 'contacts' | 'profil'
 
 interface FormState {
@@ -47,12 +47,6 @@ function formatRelative(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 }
 
-const DEMO_CONTACTS = [
-  { name:'Marie Laurent', role:'CMO',     co:'Prisma Group', av:'ML', gr:GR_PRESETS[2], time:'2h',     loc:'Paris Fintech Forum' },
-  { name:'Jean Moreau',   role:'CTO',     co:'TechFlow',     av:'JM', gr:GR_PRESETS[4], time:'Hier',   loc:'Station F' },
-  { name:'Sarah Kim',     role:'Partner', co:'Sequoia EU',   av:'SK', gr:GR_PRESETS[1], time:'28 avr', loc:'Viva Tech' },
-  { name:'Thomas Blanc',  role:'Product', co:'Alma',         av:'TB', gr:GR_PRESETS[0], time:'21 avr', loc:'Café Oberkampf' },
-]
 
 /* ══════════════════════════════════════════════════════════ SHARED UI */
 function Section({ label, footer, children, theme }: { label?: string; footer?: string; children: React.ReactNode; theme: Theme }) {
@@ -123,6 +117,7 @@ export default function TapCardApp() {
   const [authEmail,       setAuthEmail]       = useState('')
   const [authSending,     setAuthSending]     = useState(false)
   const [authSent,        setAuthSent]        = useState(false)
+  const [updateError,     setUpdateError]     = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   const T = THEMES[dark ? 'dark' : 'light']
@@ -326,7 +321,7 @@ export default function TapCardApp() {
         setIsEditing(false)
         setScreen('mycard')
       } else {
-        alert('Modification non autorisée. Cette carte ne vous appartient pas sur cet appareil.')
+        setUpdateError('Modification non autorisée. Cette carte ne vous appartient pas sur cet appareil.')
       }
     } finally {
       setCreating(false)
@@ -344,6 +339,7 @@ export default function TapCardApp() {
     if (user.country)   setCountry(user.country)
     if (user.gradient)  setGrad(user.gradient)
     setLogoUrl(user.logo || null)
+    setUpdateError('')
     setIsEditing(true)
     setScreen('onboarding')
   }
@@ -698,6 +694,13 @@ export default function TapCardApp() {
               )}
             </Section>
 
+            {updateError && (
+              <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)',
+                borderRadius:12, padding:'12px 16px', marginBottom:12,
+                fontSize:13, color:T.red, lineHeight:1.6 }}>
+                {updateError}
+              </div>
+            )}
             <button onClick={isEditing ? doUpdate : doCreate} disabled={!form.name.trim() || creating} className="press" style={{
               width:'100%', padding:'16px', borderRadius:14,
               background:form.name.trim() ? grad.css : T.s2,
@@ -890,7 +893,7 @@ export default function TapCardApp() {
                 {[
                   {l:'Vues',    v: u.view_count != null ? String(u.view_count) : '—', u:'total'},
                   {l:'Contacts',v: connectionCount !== null ? String(connectionCount) : '—', u:'enregistrés'},
-                  {l:'Ce mois', v:'—', u:'nouveaux'},
+                  {l:'Ce mois', v: contactsLoaded ? String(contacts.filter(c => { const d = new Date(c.met_at); const n = new Date(); return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear() }).length) : '—', u:'nouveaux'},
                 ].map(s => (
                   <div key={s.l} style={{ background:T.s1, border:`1px solid ${T.sep}`, borderRadius:14,
                     padding:'15px 12px', textAlign:'center' }}>
@@ -1291,127 +1294,6 @@ export default function TapCardApp() {
             </div>
           </div>
         )}
-      </div>
-    )
-  }
-
-  /* ─── RECEIVE ─── */
-  if (screen === 'receive') {
-    const ru  = user ?? {
-      name:'Alex Dupont', role:'CEO & Co-Founder', company:'Nexora Labs',
-      email:'alex@nexora.io', phone:'+33 6 12 34 56 78',
-      linkedin:'linkedin.com/in/alexdupont',
-      socials:{ twitter:'@alexdupont', github:'github.com/alexdupont' },
-      av:'AD', logo:null, gradient:grad, handle:'alexdupont',
-    }
-    const rg  = ru.gradient ?? grad
-    const soc = getFilledSocials(ru.linkedin, ru.socials)
-
-    return (
-      <div style={{ minHeight:'100vh', background:T.bg, fontFamily:OT, transition:'background .3s' }}>
-        <div style={{ background:T.t5, borderBottom:`1px solid ${T.sep}`,
-          padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <div style={{ fontSize:11, color:T.t3, letterSpacing:.4, fontWeight:300 }}>
-            Aperçu · vue du destinataire
-          </div>
-          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <ThemeBtn/>
-            <button onClick={() => setScreen('mycard')} style={{ color:T.blue, fontSize:14, fontFamily:OT,
-              display:'flex', alignItems:'center', gap:4, fontWeight:500 }}>
-              <ArrowLeft size={13}/> Retour
-            </button>
-          </div>
-        </div>
-
-        <div style={{ padding:'28px 16px 64px' }}>
-          <div className="fu1" style={{ marginBottom:22 }}>
-            <BusinessCard u={{ ...ru, logo: ru.logo ?? undefined }} large/>
-          </div>
-
-          <div className="fu2" style={{ marginBottom:8 }}>
-            <a href={`/api/vcard?handle=${ru.handle}`}
-              style={{ display:'block', width:'100%', padding:'16px', borderRadius:14,
-                background:rg.css, color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
-                boxShadow:`0 10px 36px ${rg.sh}`, letterSpacing:.2, textAlign:'center', textDecoration:'none' }}>
-              Ajouter à mes contacts
-            </a>
-            <div style={{ textAlign:'center', fontSize:11, fontWeight:300, color:T.t4, marginTop:8 }}>
-              Un tap · directement dans les contacts natifs
-            </div>
-          </div>
-
-          <div className="fu3">
-            <Section theme={T}>
-              {[
-                ru.email && { icon:<Mail size={14} strokeWidth={1.5}/>, label:ru.email },
-                ru.phone && { icon:<Phone size={14} strokeWidth={1.5}/>, label:ru.phone },
-                { icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>,
-                  label:`tapcard.io/${ru.handle}` },
-              ].filter(Boolean).map((it, i, a) => (
-                <Row key={i} last={i===a.length-1} theme={T}>
-                  <div style={{ display:'flex', alignItems:'center', gap:12, minHeight:44 }}>
-                    <span style={{ color:T.t3 }}>{(it as {icon: React.ReactNode; label: string}).icon}</span>
-                    <span style={{ fontSize:14, color:T.t2, fontWeight:400 }}>{(it as {icon: React.ReactNode; label: string}).label}</span>
-                  </div>
-                </Row>
-              ))}
-            </Section>
-          </div>
-
-          {soc.length > 0 && (
-            <div className="fu4">
-              <div style={{ fontFamily:OT, fontSize:12, fontWeight:500, color:T.t3,
-                letterSpacing:.5, textTransform:'uppercase', marginBottom:8, paddingLeft:4 }}>Réseaux</div>
-              <div style={{ display:'grid', gridTemplateColumns:`repeat(${Math.min(soc.length,4)},1fr)`, gap:8 }}>
-                {soc.map(s => (
-                  <div key={s.id} style={{ background:T.s1, border:`1px solid ${T.sep}`, borderRadius:12,
-                    padding:'13px 8px', display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
-                    <SI id={s.id} size={18} color={s.color}/>
-                    <span style={{ fontSize:10, fontWeight:400, color:T.t2, textAlign:'center' }}>{s.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="fu5" style={{ marginTop:14 }}>
-            <Section theme={T}>
-              <Row last theme={T}>
-                <div style={{ display:'flex', alignItems:'center', gap:14, minHeight:54 }}>
-                  <div style={{ width:36, height:36, borderRadius:10, background:T.s2,
-                    border:`1px solid ${T.sep}`, display:'flex', alignItems:'center', justifyContent:'center',
-                    fontSize:18, flexShrink:0 }}>📍</div>
-                  <div>
-                    <div style={{ fontSize:12, color:T.t3, fontWeight:300, marginBottom:2 }}>Rencontre enregistrée</div>
-                    <div style={{ fontSize:15, color:T.t1, fontWeight:500 }}>Paris Fintech Forum</div>
-                    <div style={{ fontSize:11, color:T.t4, marginTop:1, fontWeight:300 }}>Aujourd&apos;hui · 14h23</div>
-                  </div>
-                </div>
-              </Row>
-            </Section>
-          </div>
-
-          <div className="fu6" style={{ marginTop:14 }}>
-            <Section theme={T}>
-              <Row last theme={T}>
-                <div style={{ padding:'18px 0', textAlign:'center' }}>
-                  <div style={{ fontFamily:OT, fontSize:13, color:T.t3, marginBottom:14, lineHeight:1.7, fontWeight:300 }}>
-                    Créez votre carte digitale gratuite<br/>en 30 secondes. Aucune inscription.
-                  </div>
-                  <button onClick={() => setScreen('onboarding')} className="press" style={{
-                    background:rg.css, borderRadius:11, padding:'13px 30px',
-                    color:'#fff', fontSize:14, fontWeight:600, fontFamily:OT,
-                    boxShadow:`0 6px 22px ${rg.sh}`, letterSpacing:.2 }}>
-                    Créer ma carte gratuite
-                  </button>
-                  <div style={{ marginTop:13, fontSize:9, fontWeight:300, color:T.t4, letterSpacing:2, textTransform:'uppercase' }}>
-                    tapcard · one tap. real connection.
-                  </div>
-                </div>
-              </Row>
-            </Section>
-          </div>
-        </div>
       </div>
     )
   }
