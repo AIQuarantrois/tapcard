@@ -37,17 +37,19 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
-    const { handle, ...rest } = body
+    const { handle, edit_token, ...rest } = body
     if (!handle) return NextResponse.json({ error: 'handle required' }, { status: 400 })
+    if (!edit_token) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
     const { data, error } = await supabase
       .from('cards')
       .update(rest)
       .eq('handle', handle)
+      .eq('id', edit_token)
       .select()
       .single()
 
-    if (error || !data) return NextResponse.json({ error: error?.message ?? 'Not found' }, { status: 400 })
+    if (error || !data) return NextResponse.json({ error: 'Non autorisé ou carte introuvable' }, { status: 401 })
     return NextResponse.json(data)
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

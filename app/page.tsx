@@ -114,8 +114,9 @@ export default function TapCardApp() {
   const [creating,      setCreating]      = useState(false)
   const [isEditing,     setIsEditing]     = useState(false)
   const [handleStatus,  setHandleStatus]  = useState<null | 'checking' | 'ok' | 'taken'>(null)
-  const [contacts,      setContacts]      = useState<Contact[]>([])
-  const [contactsLoaded, setContactsLoaded] = useState(false)
+  const [contacts,        setContacts]        = useState<Contact[]>([])
+  const [contactsLoaded,  setContactsLoaded]  = useState(false)
+  const [connectionCount, setConnectionCount] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const T = THEMES[dark ? 'dark' : 'light']
@@ -154,7 +155,20 @@ export default function TapCardApp() {
     return () => clearTimeout(t)
   }, [screen])
 
-  /* Load contacts when tab is opened */
+  /* Fetch connection count when user loads */
+  useEffect(() => {
+    if (!user || connectionCount !== null) return
+    fetch(`/api/connections?handle=${user.handle}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: Contact[]) => {
+        setConnectionCount(data.length)
+        setContacts(data)
+        setContactsLoaded(true)
+      })
+      .catch(() => setConnectionCount(0))
+  }, [user, connectionCount])
+
+  /* Load contacts when tab is opened (already loaded above, just guard) */
   useEffect(() => {
     if (nav !== 'contacts' || !user || contactsLoaded) return
     fetch(`/api/connections?handle=${user.handle}`)
@@ -211,6 +225,8 @@ export default function TapCardApp() {
           linkedin:form.linkedin, handle:data.handle, socials, av, logo:logoUrl, gradient:grad, country,
           view_count: data.view_count ?? 0 })
         localStorage.setItem('tc_handle', data.handle)
+        localStorage.setItem(`tc_token_${data.handle}`, data.id)
+        setConnectionCount(0)
         setScreen('mycard')
       }
     } finally {
@@ -229,6 +245,7 @@ export default function TapCardApp() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           handle:       user.handle,
+          edit_token:   localStorage.getItem(`tc_token_${user.handle}`) ?? '',
           name:         form.name.trim(),
           role:         form.role,
           company:      form.company,
@@ -248,6 +265,8 @@ export default function TapCardApp() {
           view_count: user.view_count })
         setIsEditing(false)
         setScreen('mycard')
+      } else {
+        alert('Modification non autorisée. Cette carte ne vous appartient pas sur cet appareil.')
       }
     } finally {
       setCreating(false)
@@ -705,7 +724,7 @@ export default function TapCardApp() {
               <div className="fu1" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:22 }}>
                 {[
                   {l:'Vues',    v: u.view_count != null ? String(u.view_count) : '—', u:'total'},
-                  {l:'Contacts',v:'—', u:'enregistrés'},
+                  {l:'Contacts',v: connectionCount !== null ? String(connectionCount) : '—', u:'enregistrés'},
                   {l:'Ce mois', v:'—', u:'nouveaux'},
                 ].map(s => (
                   <div key={s.l} style={{ background:T.s1, border:`1px solid ${T.sep}`, borderRadius:14,
