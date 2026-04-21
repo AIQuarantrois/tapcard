@@ -37,8 +37,20 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
-    const { handle, edit_token, ...rest } = body
+    const { handle, edit_token, new_handle, ...rest } = body
     if (!handle) return NextResponse.json({ error: 'handle required' }, { status: 400 })
+
+    // If caller wants to rename the handle, validate it first
+    if (new_handle && new_handle !== handle) {
+      const clean = new_handle.toLowerCase().replace(/[^a-z0-9-]/g, '')
+      if (clean.length < 2)
+        return NextResponse.json({ error: 'Handle trop court (minimum 2 caractères)' }, { status: 400 })
+      const { data: taken } = await supabase
+        .from('cards').select('handle').eq('handle', clean).maybeSingle()
+      if (taken)
+        return NextResponse.json({ error: 'Ce handle est déjà pris' }, { status: 409 })
+      rest.handle = clean
+    }
 
     // ── Auth JWT (preferred) ──────────────────────────────────────────────
     const authHeader = req.headers.get('Authorization')
@@ -47,7 +59,6 @@ export async function PATCH(req: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser(jwt)
 
       if (user) {
-        // Verify this card belongs to this user (or is unclaimed)
         const { data: existing } = await supabase
           .from('cards').select('user_id, id').eq('handle', handle).single()
 

@@ -243,7 +243,8 @@ export default function TapCardApp() {
   /* Handle availability check */
   useEffect(() => {
     const h = form.handle.trim()
-    if (!h || (isEditing && h === user?.handle)) { setHandleStatus(null); return }
+    if (!h || h === user?.handle) { setHandleStatus(null); return }
+    if (h.length < 2) { setHandleStatus('taken'); return }
     setHandleStatus('checking')
     const t = setTimeout(async () => {
       try {
@@ -252,7 +253,7 @@ export default function TapCardApp() {
       } catch { setHandleStatus(null) }
     }, 500)
     return () => clearTimeout(t)
-  }, [form.handle, isEditing, user?.handle])
+  }, [form.handle, user?.handle])
 
   /* ── Helpers ── */
   const doCreate = async () => {
@@ -307,12 +308,16 @@ export default function TapCardApp() {
       const patchHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
       if (session) patchHeaders['Authorization'] = `Bearer ${session.access_token}`
 
+      const newHandle = form.handle.trim() || user.handle
+      const handleChanged = newHandle !== user.handle && handleStatus === 'ok'
+
       const res = await fetch('/api/cards', {
         method:  'PATCH',
         headers: patchHeaders,
         body: JSON.stringify({
           handle:       user.handle,
           edit_token:   localStorage.getItem(`tc_token_${user.handle}`) ?? '',
+          ...(handleChanged ? { new_handle: newHandle } : {}),
           name:         form.name.trim(),
           role:         form.role,
           company:      form.company,
@@ -326,14 +331,22 @@ export default function TapCardApp() {
         }),
       })
       if (res.ok) {
+        const finalHandle = handleChanged ? newHandle : user.handle
+        if (handleChanged) {
+          const token = localStorage.getItem(`tc_token_${user.handle}`) ?? ''
+          localStorage.removeItem(`tc_token_${user.handle}`)
+          localStorage.setItem('tc_handle', finalHandle)
+          localStorage.setItem(`tc_token_${finalHandle}`, token)
+        }
         setUser({ name:form.name.trim(), role:form.role, company:form.company,
           email:form.email, phone:form.phone ? `${country.dial} ${form.phone}` : '',
-          linkedin:form.linkedin, handle:user.handle, socials, av, logo:logoUrl, gradient:grad, country,
+          linkedin:form.linkedin, handle:finalHandle, socials, av, logo:logoUrl, gradient:grad, country,
           view_count: user.view_count })
         setIsEditing(false)
         setScreen('mycard')
       } else {
-        setUpdateError('Modification non autorisée. Cette carte ne vous appartient pas sur cet appareil.')
+        const err = await res.json().catch(() => ({}))
+        setUpdateError(err.error ?? 'Modification non autorisée. Cette carte ne vous appartient pas sur cet appareil.')
       }
     } finally {
       setCreating(false)
@@ -648,21 +661,32 @@ export default function TapCardApp() {
 
           {/* Handle */}
           <div className="fu5">
-            <Section label="Lien public" footer={`→ tapcard.io/${form.handle || (form.name.split(' ')[0]||'vous').toLowerCase()}`} theme={T}>
+            <Section
+              label="Lien public"
+              footer={`tapcard.io/${form.handle || (form.name.split(' ')[0]||'vous').toLowerCase()}`}
+              theme={T}
+            >
               <Row last theme={T}>
                 <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:8 }}>
                   <span style={{ fontSize:15, color:T.t3, flexShrink:0, fontFamily:OT }}>tapcard.io/</span>
                   <input type="text"
                     placeholder={(form.name.split(' ')[0]||'vous').toLowerCase()}
                     value={form.handle}
+                    autoComplete="username"
                     onChange={e => setForm(p=>({...p,handle:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')}))}
-                    style={{ flex:1, background:'transparent', border:'none', color:T.blue,
+                    style={{ flex:1, background:'transparent', border:'none', outline:'none', color:T.blue,
                       fontSize:15, fontFamily:OT, fontWeight:500 }}/>
                   {handleStatus === 'checking' && <span style={{ fontSize:11, color:T.t3, flexShrink:0 }}>…</span>}
-                  {handleStatus === 'ok'       && <span style={{ fontSize:12, color:'#22c55e', flexShrink:0, fontWeight:500 }}>✓</span>}
+                  {handleStatus === 'ok'       && <span style={{ fontSize:12, color:'#22c55e', flexShrink:0, fontWeight:500 }}>✓ Disponible</span>}
                   {handleStatus === 'taken'    && <span style={{ fontSize:11, color:T.red,    flexShrink:0, fontWeight:500 }}>Déjà pris</span>}
                 </div>
               </Row>
+              {isEditing && form.handle && form.handle !== user?.handle && handleStatus === 'ok' && (
+                <div style={{ padding:'10px 16px', fontSize:11, color:'rgba(251,191,36,0.85)',
+                  borderTop:`1px solid ${T.sep}`, lineHeight:1.6, fontWeight:300 }}>
+                  ⚠︎ Votre ancien lien ne fonctionnera plus après la mise à jour.
+                </div>
+              )}
             </Section>
           </div>
 
@@ -714,13 +738,16 @@ export default function TapCardApp() {
                 {updateError}
               </div>
             )}
-            <button onClick={isEditing ? doUpdate : doCreate} disabled={!form.name.trim() || creating} className="press" style={{
+            <button onClick={isEditing ? doUpdate : doCreate}
+              disabled={!form.name.trim() || creating || handleStatus === 'taken' || handleStatus === 'checking'}
+              className="press" style={{
               width:'100%', padding:'16px', borderRadius:14,
-              background:form.name.trim() ? grad.css : T.s2,
+              background:form.name.trim() && handleStatus !== 'taken' ? grad.css : T.s2,
               color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
-              boxShadow:form.name.trim() ? `0 8px 32px ${grad.sh}` : 'none',
-              opacity:form.name.trim() && !creating ? 1 : .45, letterSpacing:.2,
-              cursor:form.name.trim() && !creating ? 'pointer' : 'not-allowed',
+              boxShadow:form.name.trim() && handleStatus !== 'taken' ? `0 8px 32px ${grad.sh}` : 'none',
+              opacity:form.name.trim() && !creating && handleStatus !== 'taken' && handleStatus !== 'checking' ? 1 : .45,
+              letterSpacing:.2,
+              cursor:form.name.trim() && !creating && handleStatus !== 'taken' && handleStatus !== 'checking' ? 'pointer' : 'not-allowed',
               transition:'all .22s', marginTop:4 }}>
               {creating
                 ? (isEditing ? 'Mise à jour…' : 'Création…')
