@@ -34,6 +34,26 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { handle, ...rest } = body
+    if (!handle) return NextResponse.json({ error: 'handle required' }, { status: 400 })
+
+    const { data, error } = await supabase
+      .from('cards')
+      .update(rest)
+      .eq('handle', handle)
+      .select()
+      .single()
+
+    if (error || !data) return NextResponse.json({ error: error?.message ?? 'Not found' }, { status: 400 })
+    return NextResponse.json(data)
+  } catch {
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
+}
+
 export async function GET(req: NextRequest) {
   const handle = req.nextUrl.searchParams.get('handle')
   if (!handle) return NextResponse.json({ error: 'handle required' }, { status: 400 })

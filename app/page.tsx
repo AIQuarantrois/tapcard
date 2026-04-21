@@ -9,7 +9,7 @@ import BusinessCard, { SI } from '@/components/BusinessCard'
 import { THEMES, GR_PRESETS, makeGrad } from '@/lib/tokens'
 import { COUNTRIES } from '@/lib/countries'
 import { SOCIALS, getFilledSocials } from '@/lib/socials'
-import type { GradientState } from '@/lib/tokens'
+import type { GradientState, Theme } from '@/lib/tokens'
 import type { Country } from '@/lib/countries'
 
 const CG = 'var(--font-cg), Georgia, serif'
@@ -28,6 +28,7 @@ interface UserState {
   handle: string; socials?: Record<string,string>
   av: string; logo?: string | null
   gradient: GradientState; country?: Country
+  view_count?: number
 }
 
 const DEMO_CONTACTS = [
@@ -36,6 +37,45 @@ const DEMO_CONTACTS = [
   { name:'Sarah Kim',     role:'Partner', co:'Sequoia EU',   av:'SK', gr:GR_PRESETS[1], time:'28 avr', loc:'Viva Tech' },
   { name:'Thomas Blanc',  role:'Product', co:'Alma',         av:'TB', gr:GR_PRESETS[0], time:'21 avr', loc:'Café Oberkampf' },
 ]
+
+/* ══════════════════════════════════════════════════════════ SHARED UI */
+function Section({ label, footer, children, theme }: { label?: string; footer?: string; children: React.ReactNode; theme: Theme }) {
+  return (
+    <div style={{ marginBottom:28 }}>
+      {label && <div style={{ fontFamily:OT, fontSize:12, fontWeight:500, color:theme.t3,
+        letterSpacing:.5, textTransform:'uppercase', marginBottom:8, paddingLeft:4 }}>{label}</div>}
+      <div style={{ background:theme.s1, borderRadius:14, overflow:'hidden', border:`1px solid ${theme.sep}` }}>
+        {children}
+      </div>
+      {footer && <div style={{ fontFamily:OT, fontSize:12, color:theme.t3, marginTop:7, paddingLeft:4, lineHeight:1.5 }}>{footer}</div>}
+    </div>
+  )
+}
+
+function Row({ children, last=false, onTap, theme }: { children: React.ReactNode; last?: boolean; onTap?: () => void; theme: Theme }) {
+  return (
+    <div className={onTap ? 'tap' : ''} onClick={onTap}
+      style={{ padding:'0 16px', borderBottom:last ? 'none' : `1px solid ${theme.sep}`,
+        cursor:onTap ? 'pointer' : 'default', transition:'background .12s' }}>
+      {children}
+    </div>
+  )
+}
+
+function TextRow({ value, onChange, type='text', placeholder, last=false, prefix, suffix, theme }:
+  { value:string; onChange:(v:string)=>void; type?:string; placeholder:string;
+    last?:boolean; prefix?: React.ReactNode; suffix?: React.ReactNode; theme: Theme }) {
+  return (
+    <Row last={last} theme={theme}>
+      <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:10 }}>
+        {prefix && <div style={{ color:theme.t3, flexShrink:0, display:'flex', alignItems:'center' }}>{prefix}</div>}
+        <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+          style={{ flex:1, background:'transparent', border:'none', color:theme.t1, fontSize:15, fontFamily:OT, fontWeight:400 }}/>
+        {suffix}
+      </div>
+    </Row>
+  )
+}
 
 /* ══════════════════════════════════════════════════════════ ROOT */
 export default function TapCardApp() {
@@ -58,9 +98,37 @@ export default function TapCardApp() {
   const [copied,      setCopied]      = useState(false)
   const [nav,         setNav]         = useState<Nav>('card')
   const [creating,    setCreating]    = useState(false)
+  const [isEditing,   setIsEditing]   = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const T = THEMES[dark ? 'dark' : 'light']
+
+  /* Restore session from localStorage */
+  useEffect(() => {
+    const handle = localStorage.getItem('tc_handle')
+    if (!handle) return
+    fetch(`/api/cards?handle=${handle}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) { localStorage.removeItem('tc_handle'); return }
+        const p = (data.name || '').trim().split(/\s+/)
+        const av = ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase() || 'TC'
+        const restoredGrad = data.gradient
+          ? makeGrad(data.gradient.c1, data.gradient.c2, data.gradient.ac)
+          : grad
+        setGrad(restoredGrad)
+        setUser({
+          name: data.name || '', role: data.role, company: data.company,
+          email: data.email, phone: data.phone, linkedin: data.linkedin,
+          handle: data.handle, socials: data.socials || {}, av,
+          logo: data.logo_url, gradient: restoredGrad,
+          country: COUNTRIES.find(c => c.code === data.country_code) ?? COUNTRIES[1],
+          view_count: data.view_count ?? 0,
+        })
+        setScreen('mycard')
+      })
+      .catch(() => { localStorage.removeItem('tc_handle') })
+  }, [])
 
   /* Splash timer */
   useEffect(() => {
@@ -100,12 +168,65 @@ export default function TapCardApp() {
       if (res.ok) {
         setUser({ name:form.name.trim(), role:form.role, company:form.company,
           email:form.email, phone:form.phone ? `${country.dial} ${form.phone}` : '',
-          linkedin:form.linkedin, handle:data.handle, socials, av, logo:logoUrl, gradient:grad, country })
+          linkedin:form.linkedin, handle:data.handle, socials, av, logo:logoUrl, gradient:grad, country,
+          view_count: data.view_count ?? 0 })
+        localStorage.setItem('tc_handle', data.handle)
         setScreen('mycard')
       }
     } finally {
       setCreating(false)
     }
+  }
+
+  const doUpdate = async () => {
+    if (!form.name.trim() || creating || !user) return
+    setCreating(true)
+    try {
+      const p  = form.name.trim().split(/\s+/)
+      const av = ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase() || 'TC'
+      const res = await fetch('/api/cards', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handle:       user.handle,
+          name:         form.name.trim(),
+          role:         form.role,
+          company:      form.company,
+          email:        form.email,
+          phone:        form.phone ? `${country.dial} ${form.phone}` : '',
+          linkedin:     form.linkedin,
+          socials,
+          gradient:     { c1:grad.c1, c2:grad.c2, ac:grad.ac },
+          logo_url:     logoUrl,
+          country_code: country.code,
+        }),
+      })
+      if (res.ok) {
+        setUser({ name:form.name.trim(), role:form.role, company:form.company,
+          email:form.email, phone:form.phone ? `${country.dial} ${form.phone}` : '',
+          linkedin:form.linkedin, handle:user.handle, socials, av, logo:logoUrl, gradient:grad, country,
+          view_count: user.view_count })
+        setIsEditing(false)
+        setScreen('mycard')
+      }
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const startEditing = () => {
+    if (!user) return
+    const phoneNum = user.phone && user.country
+      ? user.phone.replace(user.country.dial + ' ', '')
+      : user.phone || ''
+    setForm({ name:user.name, role:user.role||'', company:user.company||'',
+      email:user.email||'', phone:phoneNum, handle:user.handle, linkedin:user.linkedin||'' })
+    setSocials(user.socials || {})
+    if (user.country)   setCountry(user.country)
+    if (user.gradient)  setGrad(user.gradient)
+    setLogoUrl(user.logo || null)
+    setIsEditing(true)
+    setScreen('onboarding')
   }
 
   const doCopy = () => { setCopied(true); setTimeout(() => setCopied(false), 2200) }
@@ -124,45 +245,6 @@ export default function TapCardApp() {
   const filteredCountries = COUNTRIES.filter(c =>
     !countryQ || c.name.toLowerCase().includes(countryQ.toLowerCase()) || c.dial.includes(countryQ)
   )
-
-  /* ── UI primitives ── */
-  function Section({ label, footer, children }: { label?: string; footer?: string; children: React.ReactNode }) {
-    return (
-      <div style={{ marginBottom:28 }}>
-        {label && <div style={{ fontFamily:OT, fontSize:12, fontWeight:500, color:T.t3,
-          letterSpacing:.5, textTransform:'uppercase', marginBottom:8, paddingLeft:4 }}>{label}</div>}
-        <div style={{ background:T.s1, borderRadius:14, overflow:'hidden', border:`1px solid ${T.sep}` }}>
-          {children}
-        </div>
-        {footer && <div style={{ fontFamily:OT, fontSize:12, color:T.t3, marginTop:7, paddingLeft:4, lineHeight:1.5 }}>{footer}</div>}
-      </div>
-    )
-  }
-
-  function Row({ children, last=false, onTap }: { children: React.ReactNode; last?: boolean; onTap?: () => void }) {
-    return (
-      <div className={onTap ? 'tap' : ''} onClick={onTap}
-        style={{ padding:'0 16px', borderBottom:last ? 'none' : `1px solid ${T.sep}`,
-          cursor:onTap ? 'pointer' : 'default', transition:'background .12s' }}>
-        {children}
-      </div>
-    )
-  }
-
-  function TextRow({ value, onChange, type='text', placeholder, last=false, prefix, suffix }:
-    { value:string; onChange:(v:string)=>void; type?:string; placeholder:string;
-      last?:boolean; prefix?: React.ReactNode; suffix?: React.ReactNode }) {
-    return (
-      <Row last={last}>
-        <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:10 }}>
-          {prefix && <div style={{ color:T.t3, flexShrink:0, display:'flex', alignItems:'center' }}>{prefix}</div>}
-          <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-            style={{ flex:1, background:'transparent', border:'none', color:T.t1, fontSize:15, fontFamily:OT, fontWeight:400 }}/>
-          {suffix}
-        </div>
-      </Row>
-    )
-  }
 
   function ThemeBtn() {
     return (
@@ -324,19 +406,29 @@ export default function TapCardApp() {
       <div style={{ minHeight:'100vh', background:T.bg, fontFamily:OT, overflowY:'auto', transition:'background .3s' }}>
         <div style={{ padding:'52px 20px 0', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:28 }}>
           <div>
-            <div style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5, lineHeight:1 }}>Nouvelle carte</div>
-            <div style={{ fontFamily:OT, fontSize:13, fontWeight:300, color:T.t3, marginTop:4 }}>30 secondes · aucune inscription</div>
+            <div style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5, lineHeight:1 }}>
+              {isEditing ? 'Modifier ma carte' : 'Nouvelle carte'}
+            </div>
+            <div style={{ fontFamily:OT, fontSize:13, fontWeight:300, color:T.t3, marginTop:4 }}>
+              {isEditing ? 'Modifiez vos informations' : '30 secondes · aucune inscription'}
+            </div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <ThemeBtn/>
-            <button onClick={() => {
+            {isEditing && (
+              <button onClick={() => { setIsEditing(false); setScreen('mycard') }}
+                style={{ color:T.t2, fontSize:14, fontFamily:OT, fontWeight:500, display:'flex', alignItems:'center', gap:4 }}>
+                <ArrowLeft size={13}/> Retour
+              </button>
+            )}
+            {!isEditing && <button onClick={() => {
               setUser({ name:'Alex Dupont', role:'CEO & Co-Founder', company:'Nexora Labs',
                 email:'alex@nexora.io', phone:'+33 6 12 34 56 78',
                 linkedin:'linkedin.com/in/alexdupont',
                 socials:{ twitter:'@alexdupont', github:'github.com/alexdupont' },
                 av:'AD', logo:null, gradient:grad, handle:'alexdupont', country:COUNTRIES[1] })
               setScreen('mycard')
-            }} style={{ color:T.blue, fontSize:14, fontFamily:OT, fontWeight:500 }}>Démo</button>
+            }} style={{ color:T.blue, fontSize:14, fontFamily:OT, fontWeight:500 }}>Démo</button>}
           </div>
         </div>
 
@@ -346,8 +438,8 @@ export default function TapCardApp() {
 
           {/* Identité */}
           <div className="fu3">
-            <Section label="Identité">
-              <Row>
+            <Section label="Identité" theme={T}>
+              <Row theme={T}>
                 <div style={{ display:'flex', alignItems:'center', minHeight:54, gap:14 }}>
                   <input type="file" accept="image/*" ref={fileRef} style={{ display:'none' }} onChange={handleLogo}/>
                   <button onClick={() => fileRef.current?.click()} style={{
@@ -370,18 +462,18 @@ export default function TapCardApp() {
                   {!logoUrl && <ChevronRight size={16} color={T.t4}/>}
                 </div>
               </Row>
-              <TextRow placeholder="Prénom et Nom" value={form.name}    onChange={v => setForm(p=>({...p,name:v}))}/>
-              <TextRow placeholder="Poste / Titre"  value={form.role}    onChange={v => setForm(p=>({...p,role:v}))}/>
-              <TextRow placeholder="Entreprise"      value={form.company} onChange={v => setForm(p=>({...p,company:v}))} last/>
+              <TextRow placeholder="Prénom et Nom" value={form.name}    onChange={v => setForm(p=>({...p,name:v}))} theme={T}/>
+              <TextRow placeholder="Poste / Titre"  value={form.role}    onChange={v => setForm(p=>({...p,role:v}))} theme={T}/>
+              <TextRow placeholder="Entreprise"      value={form.company} onChange={v => setForm(p=>({...p,company:v}))} last theme={T}/>
             </Section>
           </div>
 
           {/* Contact */}
           <div className="fu4">
-            <Section label="Contact">
+            <Section label="Contact" theme={T}>
               <TextRow type="email" placeholder="Email professionnel" value={form.email}
-                onChange={v => setForm(p=>({...p,email:v}))} prefix={<Mail size={15} strokeWidth={1.5}/>}/>
-              <Row last>
+                onChange={v => setForm(p=>({...p,email:v}))} prefix={<Mail size={15} strokeWidth={1.5}/>} theme={T}/>
+              <Row last theme={T}>
                 <div style={{ display:'flex', alignItems:'center', minHeight:46 }}>
                   <button onClick={() => setShowCountry(true)} style={{
                     display:'flex', alignItems:'center', gap:5, paddingRight:12,
@@ -401,8 +493,8 @@ export default function TapCardApp() {
 
           {/* Handle */}
           <div className="fu5">
-            <Section label="Lien public" footer={`→ tapcard.io/${form.handle || (form.name.split(' ')[0]||'vous').toLowerCase()}`}>
-              <Row last>
+            <Section label="Lien public" footer={`→ tapcard.io/${form.handle || (form.name.split(' ')[0]||'vous').toLowerCase()}`} theme={T}>
+              <Row last theme={T}>
                 <div style={{ display:'flex', alignItems:'center', minHeight:46 }}>
                   <span style={{ fontSize:15, color:T.t3, flexShrink:0, fontFamily:OT }}>tapcard.io/</span>
                   <input type="text"
@@ -418,8 +510,8 @@ export default function TapCardApp() {
 
           {/* Socials */}
           <div className="fu6">
-            <Section label="Réseaux sociaux">
-              <Row last={!showMoreSoc}>
+            <Section label="Réseaux sociaux" theme={T}>
+              <Row last={!showMoreSoc} theme={T}>
                 <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:12 }}>
                   <SI id="linkedin" size={16} color="#0A66C2"/>
                   <input type="text" placeholder="linkedin.com/in/votre-profil"
@@ -428,7 +520,7 @@ export default function TapCardApp() {
                 </div>
               </Row>
               {showMoreSoc && SOCIALS.map((s, i) => (
-                <Row key={s.id} last={i===SOCIALS.length-1}>
+                <Row key={s.id} last={i===SOCIALS.length-1} theme={T}>
                   <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:12 }}>
                     <SI id={s.id} size={15} color={socials[s.id]?.trim() ? s.color : T.t3}/>
                     <input type="text" placeholder={s.ph}
@@ -438,7 +530,7 @@ export default function TapCardApp() {
                 </Row>
               ))}
               {!showMoreSoc && (
-                <Row last onTap={() => setShowMoreSoc(true)}>
+                <Row last onTap={() => setShowMoreSoc(true)} theme={T}>
                   <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:10 }}>
                     <div style={{ width:22, height:22, borderRadius:'50%', background:T.blue,
                       display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -457,7 +549,7 @@ export default function TapCardApp() {
               )}
             </Section>
 
-            <button onClick={doCreate} disabled={!form.name.trim() || creating} className="press" style={{
+            <button onClick={isEditing ? doUpdate : doCreate} disabled={!form.name.trim() || creating} className="press" style={{
               width:'100%', padding:'16px', borderRadius:14,
               background:form.name.trim() ? grad.css : T.s2,
               color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
@@ -465,7 +557,9 @@ export default function TapCardApp() {
               opacity:form.name.trim() && !creating ? 1 : .45, letterSpacing:.2,
               cursor:form.name.trim() && !creating ? 'pointer' : 'not-allowed',
               transition:'all .22s', marginTop:4 }}>
-              {creating ? 'Création…' : 'Créer ma carte'}
+              {creating
+                ? (isEditing ? 'Mise à jour…' : 'Création…')
+                : (isEditing ? 'Mettre à jour' : 'Créer ma carte')}
             </button>
             <div style={{ textAlign:'center', marginTop:11, fontSize:11, fontWeight:300,
               color:T.t4, letterSpacing:.3 }}>
@@ -558,7 +652,11 @@ export default function TapCardApp() {
             <div style={{ padding:'24px 16px' }}>
               {/* Stats */}
               <div className="fu1" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:22 }}>
-                {[{l:'Vues',v:'—',u:'total'},{l:'Contacts',v:'—',u:'enregistrés'},{l:'Ce mois',v:'—',u:'nouveaux'}].map(s => (
+                {[
+                  {l:'Vues',    v: u.view_count != null ? String(u.view_count) : '—', u:'total'},
+                  {l:'Contacts',v:'—', u:'enregistrés'},
+                  {l:'Ce mois', v:'—', u:'nouveaux'},
+                ].map(s => (
                   <div key={s.l} style={{ background:T.s1, border:`1px solid ${T.sep}`, borderRadius:14,
                     padding:'15px 12px', textAlign:'center' }}>
                     <div style={{ fontFamily:CG, fontSize:26, fontWeight:600, color:T.t1, lineHeight:1 }}>{s.v}</div>
@@ -617,9 +715,9 @@ export default function TapCardApp() {
                 <div style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5, marginBottom:3 }}>Connexions</div>
                 <div style={{ fontSize:13, color:T.t3, marginBottom:22, fontWeight:300 }}>34 contacts · 4 cette semaine</div>
               </div>
-              <Section>
+              <Section theme={T}>
                 {DEMO_CONTACTS.map((c, i, arr) => (
-                  <Row key={i} last={i===arr.length-1} onTap={() => {}}>
+                  <Row key={i} last={i===arr.length-1} onTap={() => {}} theme={T}>
                     <div style={{ display:'flex', alignItems:'center', gap:14, minHeight:58 }}>
                       <div style={{ width:40, height:40, borderRadius:13, flexShrink:0,
                         background:makeGrad(c.gr.c1, c.gr.c2).css,
@@ -646,9 +744,9 @@ export default function TapCardApp() {
             <div style={{ padding:'24px 16px' }}>
               <div className="fu1" style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5, marginBottom:22 }}>Profil</div>
 
-              <Section label="Mon compte">
-                {[{l:'Modifier ma carte',d:'Nom, poste, couleur, logo'},{l:'Lien personnalisé',d:`tapcard.io/${u.handle}`}].map((it,i,a) => (
-                  <Row key={i} last={i===a.length-1} onTap={() => {}}>
+              <Section label="Mon compte" theme={T}>
+                {[{l:'Modifier ma carte',d:'Nom, poste, couleur, logo',fn:startEditing},{l:'Lien personnalisé',d:`tapcard.io/${u.handle}`,fn:()=>{}}].map((it,i,a) => (
+                  <Row key={i} last={i===a.length-1} onTap={it.fn} theme={T}>
                     <div style={{ display:'flex', alignItems:'center', minHeight:50, justifyContent:'space-between' }}>
                       <div>
                         <div style={{ fontSize:15, color:T.t1 }}>{it.l}</div>
@@ -660,14 +758,14 @@ export default function TapCardApp() {
                 ))}
               </Section>
 
-              <Section label="Pro">
+              <Section label="Pro" theme={T}>
                 {[
                   {l:'Multi-cartes',  d:'Pro · Perso · Freelance',       badge:'PRO'},
                   {l:'Analytiques',   d:'Vues, scans, conversions',      badge:'PRO'},
                   {l:'CRM Connect',   d:'HubSpot · Salesforce · Notion', badge:'PRO'},
                   {l:'Sticker NFC',   d:'Commander — 4,90€'},
                 ].map((it, i, a) => (
-                  <Row key={i} last={i===a.length-1} onTap={() => {}}>
+                  <Row key={i} last={i===a.length-1} onTap={() => {}} theme={T}>
                     <div style={{ display:'flex', alignItems:'center', minHeight:50, justifyContent:'space-between' }}>
                       <div>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -685,8 +783,8 @@ export default function TapCardApp() {
                 ))}
               </Section>
 
-              <Section>
-                <Row last onTap={() => {}}>
+              <Section theme={T}>
+                <Row last onTap={() => {}} theme={T}>
                   <div style={{ minHeight:46, display:'flex', alignItems:'center' }}>
                     <span style={{ fontSize:15, color:T.t3 }}>Confidentialité & données</span>
                   </div>
@@ -821,9 +919,9 @@ export default function TapCardApp() {
                         {copied ? <><Check size={12}/>Copié</> : <><Copy size={12}/>Copier</>}
                       </button>
                     </div>
-                    <Section>
+                    <Section theme={T}>
                       {[{l:'Signature email',e:'✉️'},{l:'Bio LinkedIn',e:'💼'},{l:'Twitter / X',e:'𝕏'},{l:'CV',e:'📄'}].map((it, i, a) => (
-                        <Row key={it.l} last={i===a.length-1} onTap={() => {}}>
+                        <Row key={it.l} last={i===a.length-1} onTap={() => {}} theme={T}>
                           <div style={{ display:'flex', alignItems:'center', minHeight:44, gap:12 }}>
                             <span style={{ fontSize:18 }}>{it.e}</span>
                             <span style={{ fontSize:14, color:T.t1 }}>{it.l}</span>
@@ -921,14 +1019,14 @@ export default function TapCardApp() {
           </div>
 
           <div className="fu3">
-            <Section>
+            <Section theme={T}>
               {[
                 ru.email && { icon:<Mail size={14} strokeWidth={1.5}/>, label:ru.email },
                 ru.phone && { icon:<Phone size={14} strokeWidth={1.5}/>, label:ru.phone },
                 { icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>,
                   label:`tapcard.io/${ru.handle}` },
               ].filter(Boolean).map((it, i, a) => (
-                <Row key={i} last={i===a.length-1}>
+                <Row key={i} last={i===a.length-1} theme={T}>
                   <div style={{ display:'flex', alignItems:'center', gap:12, minHeight:44 }}>
                     <span style={{ color:T.t3 }}>{(it as {icon: React.ReactNode; label: string}).icon}</span>
                     <span style={{ fontSize:14, color:T.t2, fontWeight:400 }}>{(it as {icon: React.ReactNode; label: string}).label}</span>
@@ -955,8 +1053,8 @@ export default function TapCardApp() {
           )}
 
           <div className="fu5" style={{ marginTop:14 }}>
-            <Section>
-              <Row last>
+            <Section theme={T}>
+              <Row last theme={T}>
                 <div style={{ display:'flex', alignItems:'center', gap:14, minHeight:54 }}>
                   <div style={{ width:36, height:36, borderRadius:10, background:T.s2,
                     border:`1px solid ${T.sep}`, display:'flex', alignItems:'center', justifyContent:'center',
@@ -972,8 +1070,8 @@ export default function TapCardApp() {
           </div>
 
           <div className="fu6" style={{ marginTop:14 }}>
-            <Section>
-              <Row last>
+            <Section theme={T}>
+              <Row last theme={T}>
                 <div style={{ padding:'18px 0', textAlign:'center' }}>
                   <div style={{ fontFamily:OT, fontSize:13, color:T.t3, marginBottom:14, lineHeight:1.7, fontWeight:300 }}>
                     Créez votre carte digitale gratuite<br/>en 30 secondes. Aucune inscription.
