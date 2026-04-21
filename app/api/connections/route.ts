@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { sendConnectionEmail } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,17 +10,49 @@ export async function POST(req: NextRequest) {
     if (card_handle === contact_handle)
       return NextResponse.json({ error: 'Same handle' }, { status: 400 })
 
-    // Verify contact_handle exists
-    const { data: contact } = await supabase
-      .from('cards').select('handle').eq('handle', contact_handle).maybeSingle()
-    if (!contact)
+    // Check whether this connection already exists (to avoid duplicate emails)
+    const { data: existing } = await supabase
+      .from('connections')
+      .select('card_handle')
+      .eq('card_handle', card_handle)
+      .eq('contact_handle', contact_handle)
+      .maybeSingle()
+
+    const isNew = !existing
+
+    // Fetch both cards in parallel — we need them for the email anyway
+    const [{ data: ownerCard }, { data: contactCard }] = await Promise.all([
+      supabase.from('cards')
+        .select('handle, name, email, gradient')
+        .eq('handle', card_handle)
+        .maybeSingle(),
+      supabase.from('cards')
+        .select('handle, name, role, company, gradient')
+        .eq('handle', contact_handle)
+        .maybeSingle(),
+    ])
+
+    if (!contactCard)
       return NextResponse.json({ error: 'Handle introuvable' }, { status: 404 })
 
+    // Upsert the connection
     const { error } = await supabase
       .from('connections')
       .upsert({ card_handle, contact_handle }, { onConflict: 'card_handle,contact_handle' })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+    // Send notification email only on first connection, only if owner has email
+    if (isNew && ownerCard?.email) {
+      sendConnectionEmail(
+        ownerCard.email,
+        { name: ownerCard.name, handle: ownerCard.handle, gradient: ownerCard.gradient },
+        { name: contactCard.name, role: contactCard.role, company: contactCard.company,
+          handle: contactCard.handle, gradient: contactCard.gradient },
+      )
+      // Fire-and-forget — don't await so response stays fast
+    }
+
     return NextResponse.json({ ok: true }, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
