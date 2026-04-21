@@ -39,6 +39,34 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json()
     const { handle, edit_token, ...rest } = body
     if (!handle) return NextResponse.json({ error: 'handle required' }, { status: 400 })
+
+    // ── Auth JWT (preferred) ──────────────────────────────────────────────
+    const authHeader = req.headers.get('Authorization')
+    if (authHeader?.startsWith('Bearer ')) {
+      const jwt = authHeader.slice(7)
+      const { data: { user } } = await supabase.auth.getUser(jwt)
+
+      if (user) {
+        // Verify this card belongs to this user (or is unclaimed)
+        const { data: existing } = await supabase
+          .from('cards').select('user_id, id').eq('handle', handle).single()
+
+        if (existing?.user_id && existing.user_id !== user.id)
+          return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
+        const { data, error } = await supabase
+          .from('cards')
+          .update({ ...rest, user_id: user.id })
+          .eq('handle', handle)
+          .select()
+          .single()
+
+        if (error || !data) return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 400 })
+        return NextResponse.json(data)
+      }
+    }
+
+    // ── Fallback: edit_token (cartes non revendiquées) ────────────────────
     if (!edit_token) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
     const { data, error } = await supabase
@@ -60,11 +88,25 @@ export async function GET(req: NextRequest) {
   const handle = req.nextUrl.searchParams.get('handle')
   if (!handle) return NextResponse.json({ error: 'handle required' }, { status: 400 })
 
+  // Special case: find card by authenticated user
+  if (handle === 'me') {
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader?.startsWith('Bearer '))
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
+    const jwt = authHeader.slice(7)
+    const { data: { user } } = await supabase.auth.getUser(jwt)
+    if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
+    const { data, error } = await supabase
+      .from('cards').select('*').eq('user_id', user.id).single()
+
+    if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(data)
+  }
+
   const { data, error } = await supabase
-    .from('cards')
-    .select('*')
-    .eq('handle', handle)
-    .single()
+    .from('cards').select('*').eq('handle', handle).single()
 
   if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(data)

@@ -6,6 +6,8 @@ import {
   Eye, ChevronRight, ChevronDown, Mail, Wifi, Search, Phone, Sun, Moon,
 } from 'lucide-react'
 import BusinessCard, { SI } from '@/components/BusinessCard'
+import { supabaseBrowser } from '@/lib/supabase-browser'
+import type { User } from '@supabase/supabase-js'
 import { THEMES, GR_PRESETS, makeGrad } from '@/lib/tokens'
 import { COUNTRIES } from '@/lib/countries'
 import { SOCIALS, getFilledSocials } from '@/lib/socials'
@@ -15,7 +17,7 @@ import type { Country } from '@/lib/countries'
 const CG = 'var(--font-cg), Georgia, serif'
 const OT = 'var(--font-ot), system-ui, sans-serif'
 
-type Screen = 'splash' | 'onboarding' | 'mycard' | 'receive'
+type Screen = 'splash' | 'onboarding' | 'mycard' | 'receive' | 'auth'
 type Nav    = 'card' | 'contacts' | 'profil'
 
 interface FormState {
@@ -117,6 +119,10 @@ export default function TapCardApp() {
   const [contacts,        setContacts]        = useState<Contact[]>([])
   const [contactsLoaded,  setContactsLoaded]  = useState(false)
   const [connectionCount, setConnectionCount] = useState<number | null>(null)
+  const [authUser,        setAuthUser]        = useState<User | null>(null)
+  const [authEmail,       setAuthEmail]       = useState('')
+  const [authSending,     setAuthSending]     = useState(false)
+  const [authSent,        setAuthSent]        = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const T = THEMES[dark ? 'dark' : 'light']
@@ -147,6 +153,56 @@ export default function TapCardApp() {
       })
       .catch(() => { localStorage.removeItem('tc_handle') })
   }, [])
+
+  /* Auth state — session Supabase */
+  useEffect(() => {
+    supabaseBrowser.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) setAuthUser(session.user)
+    })
+    const { data: { subscription } } = supabaseBrowser.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) { setAuthUser(session.user); setAuthSent(false) }
+      if (event === 'SIGNED_OUT') setAuthUser(null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  /* Restauration via user_id (multi-appareils) */
+  useEffect(() => {
+    if (!authUser || user) return
+    supabaseBrowser.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return
+      fetch('/api/cards?handle=me', { headers: { Authorization: `Bearer ${session.access_token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data) return
+          const p = (data.name || '').trim().split(/\s+/)
+          const av = ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase() || 'TC'
+          const g = data.gradient ? makeGrad(data.gradient.c1, data.gradient.c2, data.gradient.ac) : grad
+          setGrad(g)
+          setUser({ name:data.name||'', role:data.role, company:data.company,
+            email:data.email, phone:data.phone, linkedin:data.linkedin,
+            handle:data.handle, socials:data.socials||{}, av, logo:data.logo_url,
+            gradient:g, country:COUNTRIES.find(c=>c.code===data.country_code)??COUNTRIES[1],
+            view_count:data.view_count??0 })
+          localStorage.setItem('tc_handle', data.handle)
+          setScreen('mycard')
+        })
+        .catch(() => {})
+    })
+  }, [authUser, user])
+
+  /* Auto-claim la carte quand l'utilisateur se connecte */
+  useEffect(() => {
+    if (!authUser || !user) return
+    supabaseBrowser.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return
+      fetch('/api/cards', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ handle: user.handle }),
+      }).catch(() => {})
+    })
+  }, [authUser?.id, user?.handle])
 
   /* Splash timer */
   useEffect(() => {
@@ -227,7 +283,7 @@ export default function TapCardApp() {
         localStorage.setItem('tc_handle', data.handle)
         localStorage.setItem(`tc_token_${data.handle}`, data.id)
         setConnectionCount(0)
-        setScreen('mycard')
+        setScreen(authUser ? 'mycard' : 'auth')
       }
     } finally {
       setCreating(false)
@@ -240,9 +296,13 @@ export default function TapCardApp() {
     try {
       const p  = form.name.trim().split(/\s+/)
       const av = ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase() || 'TC'
+      const session = (await supabaseBrowser.auth.getSession()).data.session
+      const patchHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (session) patchHeaders['Authorization'] = `Bearer ${session.access_token}`
+
       const res = await fetch('/api/cards', {
         method:  'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: patchHeaders,
         body: JSON.stringify({
           handle:       user.handle,
           edit_token:   localStorage.getItem(`tc_token_${user.handle}`) ?? '',
@@ -289,6 +349,25 @@ export default function TapCardApp() {
   }
 
   const doCopy = () => { setCopied(true); setTimeout(() => setCopied(false), 2200) }
+
+  const doSendMagicLink = async () => {
+    if (!authEmail.trim() || authSending) return
+    setAuthSending(true)
+    try {
+      const { error } = await supabaseBrowser.auth.signInWithOtp({
+        email: authEmail.trim(),
+        options: { emailRedirectTo: window.location.origin },
+      })
+      if (!error) setAuthSent(true)
+    } finally { setAuthSending(false) }
+  }
+
+  const doSignOut = async () => {
+    await supabaseBrowser.auth.signOut()
+    setAuthUser(null); setUser(null)
+    localStorage.removeItem('tc_handle')
+    setScreen('onboarding')
+  }
 
   const doNativeShare = async (handle: string, name: string) => {
     const url = `${window.location.origin}/${handle}`
@@ -685,6 +764,92 @@ export default function TapCardApp() {
     )
   }
 
+  /* ─── AUTH ─── */
+  if (screen === 'auth') return (
+    <div style={{ minHeight:'100vh', background:T.bg, fontFamily:OT, display:'flex',
+      flexDirection:'column', alignItems:'center', justifyContent:'center',
+      padding:'40px 24px', transition:'background .3s' }}>
+      <div style={{ width:'100%', maxWidth:400 }}>
+
+        {!authSent ? (
+          <>
+            <div style={{ marginBottom:36, textAlign:'center' }}>
+              <div style={{ width:64, height:64, borderRadius:20, background:grad.css,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                margin:'0 auto 20px', boxShadow:`0 8px 28px ${grad.sh}` }}>
+                <Mail size={28} color="#fff" strokeWidth={1.5}/>
+              </div>
+              <div style={{ fontFamily:CG, fontSize:34, fontWeight:600, color:T.t1, letterSpacing:-.5, marginBottom:10 }}>
+                Sécurise ta carte
+              </div>
+              <div style={{ fontSize:14, color:T.t3, lineHeight:1.8, fontWeight:300 }}>
+                Entre ton email pour accéder à ta carte<br/>depuis n'importe quel appareil.<br/>
+                <strong style={{ color:T.t2, fontWeight:500 }}>Aucun mot de passe.</strong>
+              </div>
+            </div>
+
+            <div style={{ background:T.s1, borderRadius:14, overflow:'hidden',
+              border:`1px solid ${T.sep}`, marginBottom:14 }}>
+              <div style={{ padding:'0 16px', display:'flex', alignItems:'center', minHeight:54, gap:12 }}>
+                <Mail size={16} color={T.t3} strokeWidth={1.5} style={{ flexShrink:0 }}/>
+                <input type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && doSendMagicLink()}
+                  placeholder="ton@email.com" autoFocus
+                  style={{ flex:1, background:'transparent', border:'none', color:T.t1,
+                    fontSize:16, fontFamily:OT, outline:'none' }}/>
+              </div>
+            </div>
+
+            <button onClick={doSendMagicLink} disabled={!authEmail.trim() || authSending}
+              className="press" style={{
+                width:'100%', padding:'16px', borderRadius:14,
+                background:authEmail.trim() ? grad.css : T.s2,
+                color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
+                boxShadow:authEmail.trim() ? `0 8px 32px ${grad.sh}` : 'none',
+                opacity:authEmail.trim() && !authSending ? 1 : .45,
+                marginBottom:12, transition:'all .22s' }}>
+              {authSending ? 'Envoi…' : 'Envoyer le lien de connexion'}
+            </button>
+
+            <button onClick={() => setScreen('mycard')}
+              style={{ width:'100%', padding:'13px', borderRadius:12, background:'transparent',
+                color:T.t3, fontSize:14, fontFamily:OT }}>
+              Pas maintenant
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ textAlign:'center', marginBottom:32 }}>
+              <div style={{ fontSize:64, marginBottom:20 }}>✉️</div>
+              <div style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5, marginBottom:10 }}>
+                Vérifie tes emails
+              </div>
+              <div style={{ fontSize:14, color:T.t3, lineHeight:1.8, fontWeight:300 }}>
+                Un lien de connexion a été envoyé à<br/>
+                <strong style={{ color:T.t2, fontWeight:500 }}>{authEmail}</strong>
+              </div>
+            </div>
+
+            <div style={{ background:T.s1, borderRadius:14, padding:'18px 16px',
+              border:`1px solid ${T.sep}`, marginBottom:20 }}>
+              <div style={{ fontSize:13, color:T.t3, lineHeight:1.8, fontWeight:300 }}>
+                📬 Clique sur le lien dans l'email pour te connecter.<br/>
+                Tu peux fermer cette page et y revenir après.
+              </div>
+            </div>
+
+            <button onClick={() => setScreen('mycard')} className="press" style={{
+              width:'100%', padding:'15px', borderRadius:14,
+              background:grad.css, color:'#fff', fontSize:15, fontWeight:600, fontFamily:OT,
+              boxShadow:`0 8px 28px ${grad.sh}`, letterSpacing:.2 }}>
+              Accéder à ma carte
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+
   /* ─── MY CARD ─── */
   if (screen === 'mycard') {
     const u = user ?? {
@@ -841,18 +1006,67 @@ export default function TapCardApp() {
             <div style={{ padding:'24px 16px' }}>
               <div className="fu1" style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5, marginBottom:22 }}>Profil</div>
 
-              <Section label="Mon compte" theme={T}>
-                {[{l:'Modifier ma carte',d:'Nom, poste, couleur, logo',fn:startEditing},{l:'Lien personnalisé',d:`tapcard.io/${u.handle}`,fn:()=>window.open(`/${u.handle}`,'_blank')}].map((it,i,a) => (
-                  <Row key={i} last={i===a.length-1} onTap={it.fn} theme={T}>
-                    <div style={{ display:'flex', alignItems:'center', minHeight:50, justifyContent:'space-between' }}>
-                      <div>
-                        <div style={{ fontSize:15, color:T.t1 }}>{it.l}</div>
-                        <div style={{ fontSize:12, color:T.t3, marginTop:1, fontWeight:300 }}>{it.d}</div>
+              <Section label="Compte" theme={T}>
+                {authUser ? (
+                  <>
+                    <Row theme={T}>
+                      <div style={{ display:'flex', alignItems:'center', minHeight:52, justifyContent:'space-between' }}>
+                        <div>
+                          <div style={{ fontSize:15, color:T.t1 }}>Connecté</div>
+                          <div style={{ fontSize:12, color:T.t3, marginTop:1, fontWeight:300 }}>{authUser.email}</div>
+                        </div>
+                        <div style={{ width:8, height:8, borderRadius:'50%', background:'#22c55e' }}/>
                       </div>
-                      <ChevronRight size={15} color={T.t4}/>
-                    </div>
-                  </Row>
-                ))}
+                    </Row>
+                    <Row theme={T}>
+                      <div style={{ display:'flex', alignItems:'center', minHeight:50, justifyContent:'space-between' }}
+                        onClick={startEditing}>
+                        <div>
+                          <div style={{ fontSize:15, color:T.t1 }}>Modifier ma carte</div>
+                          <div style={{ fontSize:12, color:T.t3, marginTop:1, fontWeight:300 }}>Nom, poste, couleur, logo</div>
+                        </div>
+                        <ChevronRight size={15} color={T.t4}/>
+                      </div>
+                    </Row>
+                    <Row theme={T}>
+                      <div style={{ display:'flex', alignItems:'center', minHeight:50, justifyContent:'space-between' }}
+                        onClick={() => window.open(`/${u.handle}`, '_blank')}>
+                        <div>
+                          <div style={{ fontSize:15, color:T.t1 }}>Lien personnalisé</div>
+                          <div style={{ fontSize:12, color:T.t3, marginTop:1, fontWeight:300 }}>tapcard.io/{u.handle}</div>
+                        </div>
+                        <ChevronRight size={15} color={T.t4}/>
+                      </div>
+                    </Row>
+                    <Row last onTap={doSignOut} theme={T}>
+                      <div style={{ minHeight:46, display:'flex', alignItems:'center' }}>
+                        <span style={{ fontSize:15, color:T.red }}>Se déconnecter</span>
+                      </div>
+                    </Row>
+                  </>
+                ) : (
+                  <>
+                    <Row theme={T}>
+                      <div style={{ display:'flex', alignItems:'center', minHeight:50, justifyContent:'space-between' }}
+                        onClick={startEditing}>
+                        <div>
+                          <div style={{ fontSize:15, color:T.t1 }}>Modifier ma carte</div>
+                          <div style={{ fontSize:12, color:T.t3, marginTop:1, fontWeight:300 }}>Nom, poste, couleur, logo</div>
+                        </div>
+                        <ChevronRight size={15} color={T.t4}/>
+                      </div>
+                    </Row>
+                    <Row last onTap={() => { setAuthSent(false); setScreen('auth') }} theme={T}>
+                      <div style={{ display:'flex', alignItems:'center', minHeight:50, justifyContent:'space-between' }}>
+                        <div>
+                          <div style={{ fontSize:15, color:T.t1 }}>Sécuriser ma carte</div>
+                          <div style={{ fontSize:12, color:T.t3, marginTop:1, fontWeight:300 }}>Accès multi-appareils par email</div>
+                        </div>
+                        <ChevronRight size={15} color={T.t4}/>
+                      </div>
+                    </Row>
+                  </>
+                )}
               </Section>
 
               <Section label="Pro" theme={T}>
