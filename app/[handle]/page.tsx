@@ -8,6 +8,7 @@ import BusinessCard from '@/components/BusinessCard'
 import type { Card } from '@/lib/types'
 import { Mail, Phone } from 'lucide-react'
 import ShareBack from '@/components/ShareBack'
+import { BackButton, AddContactButton } from '@/components/PublicPageClient'
 
 async function getCard(handle: string): Promise<Card | null> {
   const { data } = await supabase
@@ -48,25 +49,42 @@ export default async function PublicCardPage({ params }: { params: { handle: str
   /* Incrémente les vues sans bloquer le rendu */
   supabase.from('cards').update({ view_count: (card.view_count ?? 0) + 1 }).eq('handle', card.handle)
 
-  const grad  = makeGrad(card.gradient.c1, card.gradient.c2, card.gradient.ac)
-  const soc   = getFilledSocials(card.linkedin, card.socials)
+  const grad     = makeGrad(card.gradient.c1, card.gradient.c2, card.gradient.ac)
+  const soc      = getFilledSocials(card.linkedin, card.socials)
   const hasContact = card.email || card.phone
 
   const OT = 'var(--font-ot), system-ui, sans-serif'
   const CG = 'var(--font-cg), Georgia, serif'
 
   return (
-    <div style={{ minHeight:'100vh', background:'#0A0A0F', fontFamily:OT }}>
-      {/* Banner */}
-      <div style={{ background:'rgba(255,255,255,0.04)', borderBottom:'1px solid rgba(255,255,255,0.07)',
-        padding:'10px 16px', textAlign:'center' }}>
-        <span style={{ fontSize:11, color:'rgba(245,245,247,0.38)', letterSpacing:.8,
+    /* ── #16 Desktop layout — fond décoratif + colonne centrée ── */
+    <div style={{ minHeight:'100vh', background:'#0A0A0F', fontFamily:OT, position:'relative' }}>
+
+      {/* Orbes décoratifs — subtils sur mobile, visibles sur desktop */}
+      <div style={{ position:'fixed', top:-180, right:-180, width:520, height:520, borderRadius:'50%',
+        background:`radial-gradient(circle, ${grad.ac}1A, transparent 68%)`,
+        pointerEvents:'none', zIndex:0 }}/>
+      <div style={{ position:'fixed', bottom:-160, left:-160, width:440, height:440, borderRadius:'50%',
+        background:`radial-gradient(circle, ${grad.c2}14, transparent 68%)`,
+        pointerEvents:'none', zIndex:0 }}/>
+
+      {/* ── Header / nav ── */}
+      <div style={{ position:'relative', zIndex:1, background:'rgba(10,10,15,0.85)',
+        backdropFilter:'blur(12px)', borderBottom:'1px solid rgba(255,255,255,0.07)',
+        padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between',
+        maxWidth:'100%' }}>
+        {/* #4 Bouton retour */}
+        <BackButton/>
+        <span style={{ fontSize:11, color:'rgba(245,245,247,0.28)', letterSpacing:.8,
           textTransform:'uppercase', fontWeight:300 }}>
-          Carte de visite digitale · TapCard
+          TapCard
         </span>
+        {/* Spacer pour centrer le titre */}
+        <div style={{ width:52 }}/>
       </div>
 
-      <div style={{ maxWidth:480, margin:'0 auto', padding:'28px 16px 72px' }}>
+      {/* ── Contenu centré ── */}
+      <div style={{ position:'relative', zIndex:1, maxWidth:480, margin:'0 auto', padding:'28px 16px 72px' }}>
 
         {/* Card */}
         <div className="fu1" style={{ marginBottom:24 }}>
@@ -86,15 +104,9 @@ export default async function PublicCardPage({ params }: { params: { handle: str
           />
         </div>
 
-        {/* Primary CTA — download vCard */}
+        {/* #11 Primary CTA — conditionnel */}
         <div className="fu2" style={{ marginBottom:8 }}>
-          <a href={`/api/vcard?handle=${card.handle}`}
-            style={{ display:'block', width:'100%', padding:'16px', borderRadius:14,
-              background:grad.css, color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
-              boxShadow:`0 10px 36px ${grad.sh}`, letterSpacing:.2, textAlign:'center',
-              textDecoration:'none' }}>
-            Ajouter à mes contacts
-          </a>
+          <AddContactButton handle={card.handle} gradCss={grad.css} gradSh={grad.sh}/>
           <div style={{ textAlign:'center', fontSize:11, fontWeight:300,
             color:'rgba(245,245,247,0.30)', marginTop:8 }}>
             Un tap · directement dans les contacts natifs
@@ -185,30 +197,8 @@ export default async function PublicCardPage({ params }: { params: { handle: str
           </div>
         </div>
 
-        {/* Lieu de rencontre */}
-        <div className="fu5" style={{ marginBottom:14 }}>
-          <div style={{ background:'#141418', borderRadius:14, overflow:'hidden',
-            border:'1px solid rgba(255,255,255,0.07)' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:14, padding:'16px' }}>
-              <div style={{ width:36, height:36, borderRadius:10,
-                background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.07)',
-                display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
-                📍
-              </div>
-              <div>
-                <div style={{ fontSize:12, color:'rgba(245,245,247,0.38)', fontWeight:300, marginBottom:2 }}>
-                  Carte partagée depuis
-                </div>
-                <div style={{ fontSize:14, color:'rgba(245,245,247,0.85)', fontWeight:500 }}>
-                  tapcard.io/{card.handle}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Share back */}
-        <div className="fu6" style={{ marginBottom: 14 }}>
+        <div className="fu6" style={{ marginBottom:14 }}>
           <ShareBack
             cardHandle={card.handle}
             cardName={card.name}
@@ -218,7 +208,7 @@ export default async function PublicCardPage({ params }: { params: { handle: str
         </div>
 
         {/* Create your own CTA */}
-        <div className="fu8">
+        <div style={{ animation:'fu .46s .42s ease both' }}>
           <div style={{ background:'#141418', borderRadius:14, overflow:'hidden',
             border:'1px solid rgba(255,255,255,0.07)' }}>
             <div style={{ padding:'24px 16px', textAlign:'center' }}>
@@ -239,6 +229,7 @@ export default async function PublicCardPage({ params }: { params: { handle: str
             </div>
           </div>
         </div>
+
       </div>
     </div>
   )
