@@ -43,14 +43,15 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
     // Send notification email only on first connection, only if owner has email
+    // await is intentional: serverless functions can exit before fire-and-forget completes.
+    // sendConnectionEmail catches all errors internally so this never throws.
     if (isNew && ownerCard?.email) {
-      sendConnectionEmail(
+      await sendConnectionEmail(
         ownerCard.email,
         { name: ownerCard.name, handle: ownerCard.handle, gradient: ownerCard.gradient },
         { name: contactCard.name, role: contactCard.role, company: contactCard.company,
           handle: contactCard.handle, gradient: contactCard.gradient },
       )
-      // Fire-and-forget — don't await so response stays fast
     }
 
     return NextResponse.json({ ok: true }, { status: 201 })
