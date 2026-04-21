@@ -911,11 +911,13 @@ export default function TapCardApp() {
               {soc.length > 0 && (
                 <div className="fu3" style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:22 }}>
                   {soc.map(s => (
-                    <div key={s.id} style={{ display:'flex', alignItems:'center', gap:5,
-                      background:T.s1, border:`1px solid ${T.sep}`,
-                      borderRadius:20, padding:'5px 12px', fontSize:12, color:T.t2 }}>
+                    <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer"
+                      style={{ display:'flex', alignItems:'center', gap:5,
+                        background:T.s1, border:`1px solid ${T.sep}`,
+                        borderRadius:20, padding:'5px 12px', fontSize:12, color:T.t2,
+                        textDecoration:'none' }}>
                       <SI id={s.id} size={11} color={s.color}/>{s.label}
-                    </div>
+                    </a>
                   ))}
                 </div>
               )}

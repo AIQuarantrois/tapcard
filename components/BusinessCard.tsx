@@ -108,11 +108,13 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
         {soc.length > 0 && (
           <div style={{ display:'flex', gap:6 }}>
             {soc.slice(0, large ? 8 : 5).map(s => (
-              <div key={s.id} style={{ width: large ? 28 : 22, height: large ? 28 : 22, borderRadius:'50%',
-                background:'rgba(255,255,255,.18)', backdropFilter:'blur(6px)',
-                display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer"
+                style={{ width: large ? 28 : 22, height: large ? 28 : 22, borderRadius:'50%',
+                  background:'rgba(255,255,255,.18)', backdropFilter:'blur(6px)',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  textDecoration:'none', flexShrink:0 }}>
                 <SI id={s.id} size={large ? 14 : 11} color="rgba(255,255,255,.9)"/>
-              </div>
+              </a>
             ))}
           </div>
         )}

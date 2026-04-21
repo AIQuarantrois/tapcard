@@ -131,14 +131,16 @@ export default async function PublicCardPage({ params }: { params: { handle: str
             <div style={{ display:'grid',
               gridTemplateColumns:`repeat(${Math.min(soc.length, 4)}, 1fr)`, gap:8 }}>
               {soc.map(s => (
-                <div key={s.id} style={{ background:'#141418', border:'1px solid rgba(255,255,255,0.07)',
-                  borderRadius:12, padding:'13px 8px',
-                  display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
+                <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer"
+                  style={{ background:'#141418', border:'1px solid rgba(255,255,255,0.07)',
+                    borderRadius:12, padding:'13px 8px',
+                    display:'flex', flexDirection:'column', alignItems:'center', gap:6,
+                    textDecoration:'none', cursor:'pointer' }}>
                   <SI id={s.id} size={20} color={s.color}/>
                   <span style={{ fontSize:10, color:'rgba(245,245,247,0.55)', textAlign:'center' }}>
                     {s.label}
                   </span>
-                </div>
+                </a>
               ))}
             </div>
           </div>
