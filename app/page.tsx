@@ -637,7 +637,7 @@ export default function TapCardApp() {
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <ThemeBtn/>
-            <button onClick={() => setScreen('receive')} style={{
+            <button onClick={() => window.open(`/${u.handle}`, '_blank')} style={{
               background:T.t5, border:`1px solid ${T.sep}`, borderRadius:10, padding:'7px 13px',
               color:T.t2, fontSize:13, fontFamily:OT, display:'flex', alignItems:'center', gap:5 }}>
               <Eye size={13}/> Aperçu
@@ -745,7 +745,7 @@ export default function TapCardApp() {
               <div className="fu1" style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5, marginBottom:22 }}>Profil</div>
 
               <Section label="Mon compte" theme={T}>
-                {[{l:'Modifier ma carte',d:'Nom, poste, couleur, logo',fn:startEditing},{l:'Lien personnalisé',d:`tapcard.io/${u.handle}`,fn:()=>{}}].map((it,i,a) => (
+                {[{l:'Modifier ma carte',d:'Nom, poste, couleur, logo',fn:startEditing},{l:'Lien personnalisé',d:`tapcard.io/${u.handle}`,fn:()=>window.open(`/${u.handle}`,'_blank')}].map((it,i,a) => (
                   <Row key={i} last={i===a.length-1} onTap={it.fn} theme={T}>
                     <div style={{ display:'flex', alignItems:'center', minHeight:50, justifyContent:'space-between' }}>
                       <div>
@@ -883,9 +883,15 @@ export default function TapCardApp() {
                       </div>
                     </div>
                     <div style={{ display:'flex', gap:9, width:'100%' }}>
-                      {[{l:'WhatsApp',e:'💬',bg:'rgba(37,211,102,.1)',bc:'rgba(37,211,102,.22)'},
-                        {l:'SMS',e:'📱',bg:T.t5,bc:T.sep},{l:'Email',e:'📧',bg:T.t5,bc:T.sep}].map(b => (
-                        <button key={b.l} className="press" style={{ flex:1, padding:'13px 6px',
+                      {[
+                        {l:'WhatsApp',e:'💬',bg:'rgba(37,211,102,.1)',bc:'rgba(37,211,102,.22)',
+                         fn:()=>window.open(`https://wa.me/?text=${encodeURIComponent(`Ma carte TapCard : ${window.location.origin}/${u.handle}`)}`)},
+                        {l:'SMS',e:'📱',bg:T.t5,bc:T.sep,
+                         fn:()=>window.open(`sms:?body=${encodeURIComponent(`Ma carte TapCard : ${window.location.origin}/${u.handle}`)}`)},
+                        {l:'Email',e:'📧',bg:T.t5,bc:T.sep,
+                         fn:()=>window.open(`mailto:?subject=${encodeURIComponent('Ma carte TapCard')}&body=${encodeURIComponent(`Voici ma carte de visite digitale :\n${window.location.origin}/${u.handle}`)}`)}
+                      ].map(b => (
+                        <button key={b.l} onClick={b.fn} className="press" style={{ flex:1, padding:'13px 6px',
                           borderRadius:12, background:b.bg, border:`1px solid ${b.bc}`,
                           color:T.t1, fontSize:11, fontFamily:OT,
                           display:'flex', flexDirection:'column', alignItems:'center', gap:5 }}>
@@ -920,8 +926,13 @@ export default function TapCardApp() {
                       </button>
                     </div>
                     <Section theme={T}>
-                      {[{l:'Signature email',e:'✉️'},{l:'Bio LinkedIn',e:'💼'},{l:'Twitter / X',e:'𝕏'},{l:'CV',e:'📄'}].map((it, i, a) => (
-                        <Row key={it.l} last={i===a.length-1} onTap={() => {}} theme={T}>
+                      {[
+                        {l:'Signature email', e:'✉️', fn:()=>{ navigator.clipboard.writeText(`${window.location.origin}/${u.handle}`); doCopy() }},
+                        {l:'Bio LinkedIn',    e:'💼', fn:()=>{ navigator.clipboard.writeText(`${window.location.origin}/${u.handle}`); doCopy() }},
+                        {l:'Twitter / X',     e:'𝕏',  fn:()=>window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Ma carte TapCard : ${window.location.origin}/${u.handle}`)}`)},
+                        {l:'CV',              e:'📄', fn:()=>{ navigator.clipboard.writeText(`${window.location.origin}/${u.handle}`); doCopy() }},
+                      ].map((it, i, a) => (
+                        <Row key={it.l} last={i===a.length-1} onTap={it.fn} theme={T}>
                           <div style={{ display:'flex', alignItems:'center', minHeight:44, gap:12 }}>
                             <span style={{ fontSize:18 }}>{it.e}</span>
                             <span style={{ fontSize:14, color:T.t1 }}>{it.l}</span>
