@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
+const QRScanner = lazy(() => import('@/components/QRScanner'))
 import {
   X, Copy, Check, ArrowLeft, Share2, Users, Settings,
   Eye, ChevronRight, ChevronDown, Mail, Wifi, Search, Sun, Moon,
@@ -123,6 +124,10 @@ export default function TapCardApp() {
   const [contacts,        setContacts]        = useState<Contact[]>([])
   const [contactsLoaded,  setContactsLoaded]  = useState(false)
   const [connectionCount, setConnectionCount] = useState<number | null>(null)
+  const [contactSearch,   setContactSearch]   = useState('')
+  const [contactSort,     setContactSort]     = useState<'date' | 'name'>('date')
+  const [contactPage,     setContactPage]     = useState(1)
+  const [showScanner,     setShowScanner]     = useState(false)
   const [authUser,        setAuthUser]        = useState<User | null>(null)
   const [authEmail,       setAuthEmail]       = useState('')
   const [authSending,     setAuthSending]     = useState(false)
@@ -1020,62 +1025,158 @@ export default function TapCardApp() {
           )}
 
           {/* ─ CONTACTS tab ─ */}
-          {nav === 'contacts' && (
-            <div style={{ padding:'24px 16px' }}>
-              <div className="fu1">
-                <div style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5, marginBottom:3 }}>Connexions</div>
-                <div style={{ fontSize:13, color:T.t3, marginBottom:22, fontWeight:300 }}>
-                  {contactsLoaded ? `${contacts.length} contact${contacts.length !== 1 ? 's' : ''}` : '…'}
-                </div>
-              </div>
+          {nav === 'contacts' && (() => {
+            /* ── Filtre + tri ── */
+            const q = contactSearch.trim().toLowerCase()
+            const filtered = contacts
+              .filter(c => {
+                if (!q) return true
+                const name    = (c.card?.name    ?? c.contact_handle).toLowerCase()
+                const role    = (c.card?.role    ?? '').toLowerCase()
+                const company = (c.card?.company ?? '').toLowerCase()
+                return name.includes(q) || role.includes(q) || company.includes(q)
+              })
+              .sort((a, b) => contactSort === 'name'
+                ? (a.card?.name ?? a.contact_handle).localeCompare(b.card?.name ?? b.contact_handle, 'fr')
+                : new Date(b.met_at).getTime() - new Date(a.met_at).getTime()
+              )
+            const PAGE = 20
+            const visible  = filtered.slice(0, contactPage * PAGE)
+            const hasMore  = filtered.length > visible.length
 
-              {!contactsLoaded && (
-                <div style={{ textAlign:'center', padding:'40px 0', color:T.t3, fontSize:14 }}>Chargement…</div>
-              )}
-
-              {contactsLoaded && contacts.length === 0 && (
-                <div style={{ textAlign:'center', padding:'40px 20px' }}>
-                  <div style={{ fontSize:32, marginBottom:12 }}>🤝</div>
-                  <div style={{ fontSize:15, color:T.t2, fontWeight:500, marginBottom:6 }}>Aucune connexion</div>
-                  <div style={{ fontSize:13, color:T.t3, lineHeight:1.7, fontWeight:300 }}>
-                    Partage ta carte pour recevoir des<br/>connexions en retour.
+            return (
+              <div style={{ padding:'24px 16px' }}>
+                {/* Header */}
+                <div className="fu1" style={{ marginBottom:16 }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <div>
+                      <div style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5 }}>Connexions</div>
+                      <div style={{ fontSize:12, color:T.t3, fontWeight:300, marginTop:2 }}>
+                        {contactsLoaded ? `${filtered.length}${q ? ` / ${contacts.length}` : ''} contact${contacts.length !== 1 ? 's' : ''}` : '…'}
+                      </div>
+                    </div>
+                    {/* #18 Bouton scanner QR */}
+                    <button onClick={() => setShowScanner(true)}
+                      style={{ width:40, height:40, borderRadius:12, background:T.s1,
+                        border:`1px solid ${T.sep}`, display:'flex', alignItems:'center',
+                        justifyContent:'center', color:T.t2, flexShrink:0 }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1"/>
+                        <rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/>
+                        <rect x="14" y="18" width="3" height="3"/><rect x="18" y="14" width="3" height="3"/>
+                      </svg>
+                    </button>
                   </div>
                 </div>
-              )}
 
-              {contactsLoaded && contacts.length > 0 && (
-                <Section theme={T}>
-                  {contacts.map((c, i, arr) => {
-                    const name = c.card?.name ?? c.contact_handle
-                    const parts = name.split(' ')
-                    const av = ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?'
-                    const cGrad = c.card?.gradient
-                      ? makeGrad(c.card.gradient.c1, c.card.gradient.c2, c.card.gradient.ac)
-                      : makeGrad(GR_PRESETS[0].c1, GR_PRESETS[0].c2, GR_PRESETS[0].ac)
-                    return (
-                      <Row key={i} last={i===arr.length-1} onTap={() => window.open(`/${c.contact_handle}`, '_blank')} theme={T}>
-                        <div style={{ display:'flex', alignItems:'center', gap:14, minHeight:58 }}>
-                          <div style={{ width:40, height:40, borderRadius:13, flexShrink:0,
-                            background:cGrad.css, display:'flex', alignItems:'center', justifyContent:'center',
-                            fontFamily:CG, fontSize:14, fontWeight:600, color:'#fff' }}>{av}</div>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:15, color:T.t1, fontWeight:500 }}>{name}</div>
-                            <div style={{ fontSize:12, color:T.t3, marginTop:1, fontWeight:300 }}>
-                              {[c.card?.role, c.card?.company].filter(Boolean).join(' · ') || c.contact_handle}
+                {/* Barre de recherche + tri */}
+                {contactsLoaded && contacts.length > 0 && (
+                  <div className="fu2" style={{ marginBottom:16, display:'flex', gap:8 }}>
+                    {/* Search */}
+                    <div style={{ flex:1, display:'flex', alignItems:'center', gap:8,
+                      background:T.s1, borderRadius:12, padding:'10px 14px',
+                      border:`1px solid ${T.sep}` }}>
+                      <Search size={14} color={T.t3} strokeWidth={1.5}/>
+                      <input
+                        type="search" placeholder="Rechercher…" value={contactSearch}
+                        onChange={e => { setContactSearch(e.target.value); setContactPage(1) }}
+                        style={{ flex:1, background:'transparent', border:'none', outline:'none',
+                          color:T.t1, fontSize:14, fontFamily:OT }}/>
+                      {contactSearch && (
+                        <button onClick={() => setContactSearch('')}
+                          style={{ color:T.t3, display:'flex', alignItems:'center' }}>
+                          <X size={13}/>
+                        </button>
+                      )}
+                    </div>
+                    {/* Sort toggle */}
+                    <div style={{ display:'flex', background:T.s1, borderRadius:12,
+                      border:`1px solid ${T.sep}`, overflow:'hidden', flexShrink:0 }}>
+                      {(['date','name'] as const).map(s => (
+                        <button key={s} onClick={() => setContactSort(s)}
+                          style={{ padding:'10px 12px', fontSize:12, fontFamily:OT, fontWeight:500,
+                            background: contactSort === s ? T.s3 : 'transparent',
+                            color: contactSort === s ? T.t1 : T.t3,
+                            borderRight: s === 'date' ? `1px solid ${T.sep}` : 'none',
+                            transition:'all .18s' }}>
+                          {s === 'date' ? 'Récent' : 'Nom'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* États */}
+                {!contactsLoaded && (
+                  <div style={{ textAlign:'center', padding:'40px 0', color:T.t3, fontSize:14 }}>Chargement…</div>
+                )}
+
+                {contactsLoaded && contacts.length === 0 && (
+                  <div style={{ textAlign:'center', padding:'40px 20px' }}>
+                    <div style={{ fontSize:32, marginBottom:12 }}>🤝</div>
+                    <div style={{ fontSize:15, color:T.t2, fontWeight:500, marginBottom:6 }}>Aucune connexion</div>
+                    <div style={{ fontSize:13, color:T.t3, lineHeight:1.7, fontWeight:300 }}>
+                      Partage ta carte pour recevoir des<br/>connexions en retour.
+                    </div>
+                  </div>
+                )}
+
+                {contactsLoaded && contacts.length > 0 && filtered.length === 0 && (
+                  <div style={{ textAlign:'center', padding:'32px 20px', color:T.t3, fontSize:14 }}>
+                    Aucun résultat pour « {contactSearch} »
+                  </div>
+                )}
+
+                {/* Liste */}
+                {contactsLoaded && visible.length > 0 && (
+                  <>
+                    <Section theme={T}>
+                      {visible.map((c, i, arr) => {
+                        const name  = c.card?.name ?? c.contact_handle
+                        const parts = name.split(' ')
+                        const av    = ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?'
+                        const cGrad = c.card?.gradient
+                          ? makeGrad(c.card.gradient.c1, c.card.gradient.c2, c.card.gradient.ac)
+                          : makeGrad(GR_PRESETS[0].c1, GR_PRESETS[0].c2, GR_PRESETS[0].ac)
+                        return (
+                          <Row key={c.contact_handle} last={i===arr.length-1}
+                            onTap={() => window.open(`/${c.contact_handle}`, '_blank')} theme={T}>
+                            <div style={{ display:'flex', alignItems:'center', gap:14, minHeight:58 }}>
+                              <div style={{ width:40, height:40, borderRadius:13, flexShrink:0,
+                                background:cGrad.css, display:'flex', alignItems:'center', justifyContent:'center',
+                                fontFamily:CG, fontSize:14, fontWeight:600, color:'#fff' }}>{av}</div>
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ fontSize:15, color:T.t1, fontWeight:500,
+                                  overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</div>
+                                <div style={{ fontSize:12, color:T.t3, marginTop:1, fontWeight:300 }}>
+                                  {[c.card?.role, c.card?.company].filter(Boolean).join(' · ') || c.contact_handle}
+                                </div>
+                              </div>
+                              <div style={{ textAlign:'right', flexShrink:0 }}>
+                                <div style={{ fontSize:11, color:T.t4 }}>{formatRelative(c.met_at)}</div>
+                                <ChevronRight size={14} color={T.t4} style={{ marginTop:4 }}/>
+                              </div>
                             </div>
-                          </div>
-                          <div style={{ textAlign:'right', flexShrink:0 }}>
-                            <div style={{ fontSize:11, color:T.t4 }}>{formatRelative(c.met_at)}</div>
-                            <ChevronRight size={14} color={T.t4} style={{ marginTop:4 }}/>
-                          </div>
-                        </div>
-                      </Row>
-                    )
-                  })}
-                </Section>
-              )}
-            </div>
-          )}
+                          </Row>
+                        )
+                      })}
+                    </Section>
+
+                    {/* Voir plus */}
+                    {hasMore && (
+                      <button onClick={() => setContactPage(p => p + 1)}
+                        style={{ width:'100%', marginTop:10, padding:'12px', borderRadius:12,
+                          background:T.s1, border:`1px solid ${T.sep}`, color:T.t2,
+                          fontSize:13, fontFamily:OT, fontWeight:500, cursor:'pointer' }}>
+                        Voir plus · {filtered.length - visible.length} restants
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )
+          })()}
 
           {/* ─ PROFIL tab ─ */}
           {nav === 'profil' && (
@@ -1367,6 +1468,18 @@ export default function TapCardApp() {
             </div>
           </div>
         )}
+
+        {/* ══ QR SCANNER ══ */}
+        {showScanner && (
+          <Suspense fallback={null}>
+            <QRScanner
+              gradCss={g.css}
+              onClose={() => setShowScanner(false)}
+              onResult={handle => window.open(`/${handle}`, '_blank')}
+            />
+          </Suspense>
+        )}
+
       </div>
     )
   }
