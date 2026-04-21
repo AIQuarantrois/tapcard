@@ -7,6 +7,7 @@ import { SI } from '@/components/BusinessCard'
 import BusinessCard from '@/components/BusinessCard'
 import type { Card } from '@/lib/types'
 import { Mail, Phone } from 'lucide-react'
+import ShareBack from '@/components/ShareBack'
 
 async function getCard(handle: string): Promise<Card | null> {
   const { data } = await supabase
@@ -196,8 +197,18 @@ export default async function PublicCardPage({ params }: { params: { handle: str
           </div>
         </div>
 
+        {/* Share back */}
+        <div className="fu6" style={{ marginBottom: 14 }}>
+          <ShareBack
+            cardHandle={card.handle}
+            cardName={card.name}
+            gradCss={grad.css}
+            gradSh={grad.sh}
+          />
+        </div>
+
         {/* Create your own CTA */}
-        <div className="fu6">
+        <div className="fu8">
           <div style={{ background:'#141418', borderRadius:14, overflow:'hidden',
             border:'1px solid rgba(255,255,255,0.07)' }}>
             <div style={{ padding:'24px 16px', textAlign:'center' }}>

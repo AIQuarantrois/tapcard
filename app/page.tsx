@@ -31,6 +31,20 @@ interface UserState {
   view_count?: number
 }
 
+interface Contact {
+  contact_handle: string
+  met_at: string
+  card: { name: string; role?: string; company?: string; gradient: { c1: string; c2: string; ac: string } } | null
+}
+
+function formatRelative(dateStr: string): string {
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
+  if (diff < 3600)  return `${Math.floor(diff / 60)}min`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`
+  if (diff < 604800) return `${Math.floor(diff / 86400)}j`
+  return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+}
+
 const DEMO_CONTACTS = [
   { name:'Marie Laurent', role:'CMO',     co:'Prisma Group', av:'ML', gr:GR_PRESETS[2], time:'2h',     loc:'Paris Fintech Forum' },
   { name:'Jean Moreau',   role:'CTO',     co:'TechFlow',     av:'JM', gr:GR_PRESETS[4], time:'Hier',   loc:'Station F' },
@@ -100,6 +114,8 @@ export default function TapCardApp() {
   const [creating,      setCreating]      = useState(false)
   const [isEditing,     setIsEditing]     = useState(false)
   const [handleStatus,  setHandleStatus]  = useState<null | 'checking' | 'ok' | 'taken'>(null)
+  const [contacts,      setContacts]      = useState<Contact[]>([])
+  const [contactsLoaded, setContactsLoaded] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const T = THEMES[dark ? 'dark' : 'light']
@@ -137,6 +153,15 @@ export default function TapCardApp() {
     const t = setTimeout(() => setScreen('onboarding'), 2700)
     return () => clearTimeout(t)
   }, [screen])
+
+  /* Load contacts when tab is opened */
+  useEffect(() => {
+    if (nav !== 'contacts' || !user || contactsLoaded) return
+    fetch(`/api/connections?handle=${user.handle}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { setContacts(data); setContactsLoaded(true) })
+      .catch(() => setContactsLoaded(true))
+  }, [nav, user, contactsLoaded])
 
   /* Handle availability check */
   useEffect(() => {
@@ -739,29 +764,56 @@ export default function TapCardApp() {
             <div style={{ padding:'24px 16px' }}>
               <div className="fu1">
                 <div style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5, marginBottom:3 }}>Connexions</div>
-                <div style={{ fontSize:13, color:T.t3, marginBottom:22, fontWeight:300 }}>34 contacts · 4 cette semaine</div>
+                <div style={{ fontSize:13, color:T.t3, marginBottom:22, fontWeight:300 }}>
+                  {contactsLoaded ? `${contacts.length} contact${contacts.length !== 1 ? 's' : ''}` : '…'}
+                </div>
               </div>
-              <Section theme={T}>
-                {DEMO_CONTACTS.map((c, i, arr) => (
-                  <Row key={i} last={i===arr.length-1} onTap={() => {}} theme={T}>
-                    <div style={{ display:'flex', alignItems:'center', gap:14, minHeight:58 }}>
-                      <div style={{ width:40, height:40, borderRadius:13, flexShrink:0,
-                        background:makeGrad(c.gr.c1, c.gr.c2).css,
-                        display:'flex', alignItems:'center', justifyContent:'center',
-                        fontFamily:CG, fontSize:14, fontWeight:600, color:'#fff' }}>{c.av}</div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:15, color:T.t1, fontWeight:500 }}>{c.name}</div>
-                        <div style={{ fontSize:12, color:T.t3, marginTop:1, fontWeight:300 }}>{c.role} · {c.co}</div>
-                        <div style={{ fontSize:10, color:T.t4, marginTop:2 }}>📍 {c.loc}</div>
-                      </div>
-                      <div style={{ textAlign:'right', flexShrink:0 }}>
-                        <div style={{ fontSize:11, color:T.t4 }}>{c.time}</div>
-                        <ChevronRight size={14} color={T.t4} style={{ marginTop:4 }}/>
-                      </div>
-                    </div>
-                  </Row>
-                ))}
-              </Section>
+
+              {!contactsLoaded && (
+                <div style={{ textAlign:'center', padding:'40px 0', color:T.t3, fontSize:14 }}>Chargement…</div>
+              )}
+
+              {contactsLoaded && contacts.length === 0 && (
+                <div style={{ textAlign:'center', padding:'40px 20px' }}>
+                  <div style={{ fontSize:32, marginBottom:12 }}>🤝</div>
+                  <div style={{ fontSize:15, color:T.t2, fontWeight:500, marginBottom:6 }}>Aucune connexion</div>
+                  <div style={{ fontSize:13, color:T.t3, lineHeight:1.7, fontWeight:300 }}>
+                    Partage ta carte pour recevoir des<br/>connexions en retour.
+                  </div>
+                </div>
+              )}
+
+              {contactsLoaded && contacts.length > 0 && (
+                <Section theme={T}>
+                  {contacts.map((c, i, arr) => {
+                    const name = c.card?.name ?? c.contact_handle
+                    const parts = name.split(' ')
+                    const av = ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?'
+                    const cGrad = c.card?.gradient
+                      ? makeGrad(c.card.gradient.c1, c.card.gradient.c2, c.card.gradient.ac)
+                      : makeGrad(GR_PRESETS[0].c1, GR_PRESETS[0].c2, GR_PRESETS[0].ac)
+                    return (
+                      <Row key={i} last={i===arr.length-1} onTap={() => window.open(`/${c.contact_handle}`, '_blank')} theme={T}>
+                        <div style={{ display:'flex', alignItems:'center', gap:14, minHeight:58 }}>
+                          <div style={{ width:40, height:40, borderRadius:13, flexShrink:0,
+                            background:cGrad.css, display:'flex', alignItems:'center', justifyContent:'center',
+                            fontFamily:CG, fontSize:14, fontWeight:600, color:'#fff' }}>{av}</div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:15, color:T.t1, fontWeight:500 }}>{name}</div>
+                            <div style={{ fontSize:12, color:T.t3, marginTop:1, fontWeight:300 }}>
+                              {[c.card?.role, c.card?.company].filter(Boolean).join(' · ') || c.contact_handle}
+                            </div>
+                          </div>
+                          <div style={{ textAlign:'right', flexShrink:0 }}>
+                            <div style={{ fontSize:11, color:T.t4 }}>{formatRelative(c.met_at)}</div>
+                            <ChevronRight size={14} color={T.t4} style={{ marginTop:4 }}/>
+                          </div>
+                        </div>
+                      </Row>
+                    )
+                  })}
+                </Section>
+              )}
             </div>
           )}
 
