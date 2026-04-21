@@ -22,6 +22,7 @@ export async function generateMetadata({ params }: { params: { handle: string } 
   const card = await getCard(params.handle)
   if (!card) return { title: 'Carte introuvable — TapCard' }
   const desc = [card.role, card.company].filter(Boolean).join(' · ')
+  const ogImageUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://tapcard-v3ml.vercel.app'}/api/og?handle=${card.handle}`
   return {
     title: `${card.name} — TapCard`,
     description: desc || 'Carte de visite digitale TapCard',
@@ -29,6 +30,13 @@ export async function generateMetadata({ params }: { params: { handle: string } 
       title: `${card.name} — TapCard`,
       description: desc || 'Carte de visite digitale TapCard',
       type: 'profile',
+      images: [{ url: ogImageUrl, width: 1200, height: 630, alt: `${card.name} — TapCard` }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${card.name} — TapCard`,
+      description: desc || 'Carte de visite digitale TapCard',
+      images: [ogImageUrl],
     },
   }
 }
