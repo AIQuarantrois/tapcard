@@ -128,6 +128,7 @@ export default function TapCardApp() {
   const [contactSort,     setContactSort]     = useState<'date' | 'name'>('date')
   const [contactPage,     setContactPage]     = useState(1)
   const [showScanner,     setShowScanner]     = useState(false)
+  const [onboardStep,     setOnboardStep]     = useState<1|2>(1)
   const [authUser,        setAuthUser]        = useState<User | null>(null)
   const [authEmail,       setAuthEmail]       = useState('')
   const [authSending,     setAuthSending]     = useState(false)
@@ -305,7 +306,7 @@ export default function TapCardApp() {
         localStorage.setItem('tc_handle', data.handle)
         localStorage.setItem(`tc_token_${data.handle}`, data.id)
         setConnectionCount(0)
-        setScreen(authUser ? 'mycard' : 'auth')
+        setOnboardStep(2)
       }
     } finally {
       setCreating(false)
@@ -357,6 +358,7 @@ export default function TapCardApp() {
           linkedin:form.linkedin, handle:finalHandle, socials, av, logo:logoUrl, gradient:grad, country,
           view_count: user.view_count })
         setIsEditing(false)
+        setOnboardStep(1)
         setScreen('mycard')
       } else {
         const err = await res.json().catch(() => ({}))
@@ -401,6 +403,7 @@ export default function TapCardApp() {
     await supabaseBrowser.auth.signOut()
     setAuthUser(null); setUser(null)
     localStorage.removeItem('tc_handle')
+    setOnboardStep(1)
     setScreen('onboarding')
   }
 
@@ -585,35 +588,165 @@ export default function TapCardApp() {
                   linkedin:form.linkedin, av:pav, logo:logoUrl, gradient:grad, handle:ph }
     const nFilled = [form.linkedin,...Object.values(socials)].filter(v=>v?.trim()).length
 
+    /* Barre de progression — 3 segments */
+    const steps = [
+      form.name.trim().length > 0,
+      !!(form.email.trim() || form.phone.trim()),
+      !!(form.handle.trim() || form.linkedin.trim() || Object.values(socials).some(v => v?.trim())),
+    ]
+    const done = steps.filter(Boolean).length
+
+    /* Logo row — réutilisé dans étape 2 et isEditing */
+    const LogoRow = () => (
+      <Row theme={T}>
+        <div style={{ display:'flex', alignItems:'center', minHeight:54, gap:14 }}>
+          <input type="file" accept="image/*" ref={fileRef} style={{ display:'none' }} onChange={handleLogo}/>
+          <button onClick={() => fileRef.current?.click()} style={{
+            width:44, height:44, borderRadius:12, flexShrink:0,
+            background:logoUrl ? 'transparent' : T.s2,
+            border:`1.5px dashed ${logoUrl ? 'transparent' : T.sepS}`,
+            overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            {logoUrl
+              ? <img src={logoUrl} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>
+              : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.t3} strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5" fill={T.t3} stroke="none"/><path d="M21 15l-5-5L5 21"/></svg>}
+          </button>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:15, color:T.t1, fontWeight:400 }}>{logoUrl ? 'Logo enregistré' : 'Logo ou photo'}</div>
+            <div style={{ fontSize:12, color:T.t3, marginTop:2 }}>
+              {logoUrl
+                ? <span onClick={() => setLogoUrl(null)} style={{ color:T.red, cursor:'pointer' }}>Supprimer</span>
+                : 'PNG, JPG ou SVG · carré recommandé'}
+            </div>
+          </div>
+          {!logoUrl && <ChevronRight size={16} color={T.t4}/>}
+        </div>
+      </Row>
+    )
+
+    /* Contact fields — réutilisé dans étape 2 et isEditing */
+    const ContactSection = () => (
+      <Section label="Contact" theme={T}>
+        <TextRow type="email" placeholder="Email professionnel" value={form.email}
+          onChange={v => setForm(p=>({...p,email:v}))} prefix={<Mail size={15} strokeWidth={1.5}/>} theme={T} autoComplete="email"/>
+        <Row last theme={T}>
+          <div style={{ display:'flex', alignItems:'center', minHeight:46 }}>
+            <button onClick={() => setShowCountry(true)} style={{
+              display:'flex', alignItems:'center', gap:5, paddingRight:12,
+              borderRight:`1px solid ${T.sep}`, fontFamily:OT, color:T.t1, fontSize:15, minWidth:82 }}>
+              <span style={{ fontSize:18 }}>{country.flag}</span>
+              <span style={{ color:T.t2, fontSize:14 }}>{country.dial}</span>
+              <ChevronDown size={10} color={T.t4}/>
+            </button>
+            <input type="tel" placeholder="Numéro de téléphone" value={form.phone}
+              onChange={e => setForm(p=>({...p,phone:e.target.value}))}
+              autoComplete="tel-national"
+              style={{ flex:1, background:'transparent', border:'none', outline:'none', color:T.t1,
+                fontSize:15, fontFamily:OT, paddingLeft:12 }}/>
+          </div>
+        </Row>
+      </Section>
+    )
+
+    /* Handle section — réutilisé dans étape 2 et isEditing */
+    const HandleSection = ({ showWarning }: { showWarning?: boolean }) => (
+      <Section
+        label="Lien public"
+        footer={`tapcard.io/${form.handle || (form.name.split(' ')[0]||'vous').toLowerCase()}`}
+        theme={T}
+      >
+        <Row last theme={T}>
+          <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:8 }}>
+            <span style={{ fontSize:15, color:T.t3, flexShrink:0, fontFamily:OT }}>tapcard.io/</span>
+            <input type="text"
+              placeholder={(form.name.split(' ')[0]||'vous').toLowerCase()}
+              value={form.handle}
+              autoComplete="username"
+              onChange={e => setForm(p=>({...p,handle:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')}))}
+              style={{ flex:1, background:'transparent', border:'none', outline:'none', color:T.blue,
+                fontSize:15, fontFamily:OT, fontWeight:500 }}/>
+            {handleStatus === 'checking' && <span style={{ fontSize:11, color:T.t3, flexShrink:0 }}>…</span>}
+            {handleStatus === 'ok'       && <span style={{ fontSize:12, color:'#22c55e', flexShrink:0, fontWeight:500 }}>✓ Disponible</span>}
+            {handleStatus === 'taken'    && <span style={{ fontSize:11, color:T.red,    flexShrink:0, fontWeight:500 }}>Déjà pris</span>}
+          </div>
+        </Row>
+        {showWarning && form.handle && form.handle !== user?.handle && handleStatus === 'ok' && (
+          <div style={{ padding:'10px 16px', fontSize:11, color:'rgba(251,191,36,0.85)',
+            borderTop:`1px solid ${T.sep}`, lineHeight:1.6, fontWeight:300 }}>
+            ⚠︎ Votre ancien lien ne fonctionnera plus après la mise à jour.
+          </div>
+        )}
+      </Section>
+    )
+
+    /* Socials section — réutilisé dans étape 2 et isEditing */
+    const SocialsSection = () => (
+      <Section label="Réseaux sociaux" theme={T}>
+        <Row last={!showMoreSoc} theme={T}>
+          <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:12 }}>
+            <SI id="linkedin" size={16} color="#0A66C2"/>
+            <input type="text" placeholder="linkedin.com/in/votre-profil"
+              value={form.linkedin} onChange={e => setForm(p=>({...p,linkedin:e.target.value}))}
+              style={{ flex:1, background:'transparent', border:'none', color:T.t1, fontSize:15, fontFamily:OT }}/>
+          </div>
+        </Row>
+        {showMoreSoc && SOCIALS.map((s, i) => (
+          <Row key={s.id} last={i===SOCIALS.length-1} theme={T}>
+            <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:12 }}>
+              <SI id={s.id} size={15} color={socials[s.id]?.trim() ? s.color : T.t3}/>
+              <input type="text" placeholder={s.ph}
+                value={socials[s.id]||''} onChange={e => setSoc(s.id, e.target.value)}
+                style={{ flex:1, background:'transparent', border:'none', color:T.t1, fontSize:15, fontFamily:OT }}/>
+            </div>
+          </Row>
+        ))}
+        {!showMoreSoc && (
+          <Row last onTap={() => setShowMoreSoc(true)} theme={T}>
+            <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:10 }}>
+              <div style={{ width:22, height:22, borderRadius:'50%', background:T.blue,
+                display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round">
+                  <path d="M5.5 2v7M2 5.5h7"/>
+                </svg>
+              </div>
+              <span style={{ fontSize:15, color:T.blue, fontWeight:500 }}>
+                Autres réseaux
+                {nFilled > 0 && <span style={{ background:grad.css, borderRadius:10, padding:'1px 7px',
+                  fontSize:10, fontWeight:600, color:'#fff', marginLeft:8,
+                  display:'inline-block', lineHeight:1.6 }}>{nFilled}</span>}
+              </span>
+            </div>
+          </Row>
+        )}
+      </Section>
+    )
+
     return (
       <div style={{ minHeight:'100vh', background:T.bg, fontFamily:OT, overflowY:'auto', transition:'background .3s' }}>
-        {/* Barre de progression (#6) */}
-        {!isEditing && (() => {
-          const steps = [
-            form.name.trim().length > 0,
-            !!(form.email.trim() || form.phone.trim()),
-            !!(form.handle.trim() || form.linkedin.trim() || Object.values(socials).some(v => v?.trim())),
-          ]
-          const done = steps.filter(Boolean).length
-          return (
-            <div style={{ padding:'48px 20px 0' }}>
-              <div style={{ display:'flex', gap:5, marginBottom:20 }}>
-                {steps.map((ok, i) => (
-                  <div key={i} style={{ flex:1, height:3, borderRadius:2, transition:'background .4s',
-                    background: ok ? grad.ac : (i <= done ? T.sepS : T.sep) }}/>
-                ))}
-              </div>
-            </div>
-          )
-        })()}
 
+        {/* Barre de progression */}
+        {!isEditing && (
+          <div style={{ padding:'48px 20px 0' }}>
+            <div style={{ display:'flex', gap:5, marginBottom:20 }}>
+              {steps.map((ok, i) => (
+                <div key={i} style={{ flex:1, height:3, borderRadius:2, transition:'background .4s',
+                  background: ok ? grad.ac : (i <= done ? T.sepS : T.sep) }}/>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Header */}
         <div style={{ padding: isEditing ? '52px 20px 0' : '0 20px 0', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:28 }}>
           <div>
             <div style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5, lineHeight:1 }}>
-              {isEditing ? 'Modifier ma carte' : 'Créez votre carte'}
+              {isEditing ? 'Modifier ma carte' : onboardStep === 1 ? 'Créez votre carte' : 'Complétez votre carte'}
             </div>
             <div style={{ fontFamily:OT, fontSize:13, fontWeight:300, color:T.t3, marginTop:4 }}>
-              {isEditing ? 'Modifiez vos informations' : 'Partagez d\'un geste · aucune inscription'}
+              {isEditing
+                ? 'Modifiez vos informations'
+                : onboardStep === 1
+                  ? "Partagez d'un geste · aucune inscription"
+                  : 'Optionnel · modifiable plus tard'}
             </div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -624,176 +757,145 @@ export default function TapCardApp() {
                 <ArrowLeft size={13}/> Retour
               </button>
             )}
-            {!isEditing && <button onClick={() => {
-              setUser({ name:'Alex Dupont', role:'CEO & Co-Founder', company:'Nexora Labs',
-                email:'alex@nexora.io', phone:'+33 6 12 34 56 78',
-                linkedin:'linkedin.com/in/alexdupont',
-                socials:{ twitter:'@alexdupont', github:'github.com/alexdupont' },
-                av:'AD', logo:null, gradient:grad, handle:'alexdupont', country:COUNTRIES[1] })
-              setScreen('mycard')
-            }} style={{ color:T.blue, fontSize:14, fontFamily:OT, fontWeight:500 }}>Démo</button>}
+            {!isEditing && onboardStep === 1 && (
+              <button onClick={() => {
+                setUser({ name:'Alex Dupont', role:'CEO & Co-Founder', company:'Nexora Labs',
+                  email:'alex@nexora.io', phone:'+33 6 12 34 56 78',
+                  linkedin:'linkedin.com/in/alexdupont',
+                  socials:{ twitter:'@alexdupont', github:'github.com/alexdupont' },
+                  av:'AD', logo:null, gradient:grad, handle:'alexdupont', country:COUNTRIES[1] })
+                setScreen('mycard')
+              }} style={{ color:T.blue, fontSize:14, fontFamily:OT, fontWeight:500 }}>Démo</button>
+            )}
+            {!isEditing && onboardStep === 2 && (
+              <button onClick={() => setOnboardStep(1)}
+                style={{ color:T.t2, fontSize:14, fontFamily:OT, fontWeight:500, display:'flex', alignItems:'center', gap:4 }}>
+                <ArrowLeft size={13}/> Étape 1
+              </button>
+            )}
           </div>
         </div>
 
         <div style={{ padding:'0 16px 130px' }}>
+          {/* Aperçu carte — toujours visible */}
           <div className="fu1" style={{ marginBottom:32 }}><BusinessCard u={pu}/></div>
-          <div className="fu2"><ColorPicker/></div>
 
-          {/* Identité */}
-          <div className="fu3">
-            <Section label="Identité" theme={T}>
-              <Row theme={T}>
-                <div style={{ display:'flex', alignItems:'center', minHeight:54, gap:14 }}>
-                  <input type="file" accept="image/*" ref={fileRef} style={{ display:'none' }} onChange={handleLogo}/>
-                  <button onClick={() => fileRef.current?.click()} style={{
-                    width:44, height:44, borderRadius:12, flexShrink:0,
-                    background:logoUrl ? 'transparent' : T.s2,
-                    border:`1.5px dashed ${logoUrl ? 'transparent' : T.sepS}`,
-                    overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    {logoUrl
-                      ? <img src={logoUrl} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>
-                      : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.t3} strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5" fill={T.t3} stroke="none"/><path d="M21 15l-5-5L5 21"/></svg>}
-                  </button>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:15, color:T.t1, fontWeight:400 }}>{logoUrl ? 'Logo enregistré' : 'Logo ou photo'}</div>
-                    <div style={{ fontSize:12, color:T.t3, marginTop:2 }}>
-                      {logoUrl
-                        ? <span onClick={() => setLogoUrl(null)} style={{ color:T.red, cursor:'pointer' }}>Supprimer</span>
-                        : 'PNG, JPG ou SVG · carré recommandé'}
-                    </div>
-                  </div>
-                  {!logoUrl && <ChevronRight size={16} color={T.t4}/>}
-                </div>
-              </Row>
-              <TextRow placeholder="Prénom et Nom" value={form.name}    onChange={v => setForm(p=>({...p,name:v}))} theme={T} autoComplete="name"               maxLength={40}/>
-              <TextRow placeholder="Poste / Titre"  value={form.role}    onChange={v => setForm(p=>({...p,role:v}))} theme={T} autoComplete="organization-title" maxLength={50}/>
-              <TextRow placeholder="Entreprise"      value={form.company} onChange={v => setForm(p=>({...p,company:v}))} last theme={T} autoComplete="organization" maxLength={60}/>
-            </Section>
-          </div>
-
-          {/* Contact */}
-          <div className="fu4">
-            <Section label="Contact" theme={T}>
-              <TextRow type="email" placeholder="Email professionnel" value={form.email}
-                onChange={v => setForm(p=>({...p,email:v}))} prefix={<Mail size={15} strokeWidth={1.5}/>} theme={T} autoComplete="email"/>
-              <Row last theme={T}>
-                <div style={{ display:'flex', alignItems:'center', minHeight:46 }}>
-                  <button onClick={() => setShowCountry(true)} style={{
-                    display:'flex', alignItems:'center', gap:5, paddingRight:12,
-                    borderRight:`1px solid ${T.sep}`, fontFamily:OT, color:T.t1, fontSize:15, minWidth:82 }}>
-                    <span style={{ fontSize:18 }}>{country.flag}</span>
-                    <span style={{ color:T.t2, fontSize:14 }}>{country.dial}</span>
-                    <ChevronDown size={10} color={T.t4}/>
-                  </button>
-                  <input type="tel" placeholder="Numéro de téléphone" value={form.phone}
-                    onChange={e => setForm(p=>({...p,phone:e.target.value}))}
-                    autoComplete="tel-national"
-                    style={{ flex:1, background:'transparent', border:'none', outline:'none', color:T.t1,
-                      fontSize:15, fontFamily:OT, paddingLeft:12 }}/>
-                </div>
-              </Row>
-            </Section>
-          </div>
-
-          {/* Handle */}
-          <div className="fu5">
-            <Section
-              label="Lien public"
-              footer={`tapcard.io/${form.handle || (form.name.split(' ')[0]||'vous').toLowerCase()}`}
-              theme={T}
-            >
-              <Row last theme={T}>
-                <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:8 }}>
-                  <span style={{ fontSize:15, color:T.t3, flexShrink:0, fontFamily:OT }}>tapcard.io/</span>
-                  <input type="text"
-                    placeholder={(form.name.split(' ')[0]||'vous').toLowerCase()}
-                    value={form.handle}
-                    autoComplete="username"
-                    onChange={e => setForm(p=>({...p,handle:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')}))}
-                    style={{ flex:1, background:'transparent', border:'none', outline:'none', color:T.blue,
-                      fontSize:15, fontFamily:OT, fontWeight:500 }}/>
-                  {handleStatus === 'checking' && <span style={{ fontSize:11, color:T.t3, flexShrink:0 }}>…</span>}
-                  {handleStatus === 'ok'       && <span style={{ fontSize:12, color:'#22c55e', flexShrink:0, fontWeight:500 }}>✓ Disponible</span>}
-                  {handleStatus === 'taken'    && <span style={{ fontSize:11, color:T.red,    flexShrink:0, fontWeight:500 }}>Déjà pris</span>}
-                </div>
-              </Row>
-              {isEditing && form.handle && form.handle !== user?.handle && handleStatus === 'ok' && (
-                <div style={{ padding:'10px 16px', fontSize:11, color:'rgba(251,191,36,0.85)',
-                  borderTop:`1px solid ${T.sep}`, lineHeight:1.6, fontWeight:300 }}>
-                  ⚠︎ Votre ancien lien ne fonctionnera plus après la mise à jour.
-                </div>
-              )}
-            </Section>
-          </div>
-
-          {/* Socials */}
-          <div className="fu6">
-            <Section label="Réseaux sociaux" theme={T}>
-              <Row last={!showMoreSoc} theme={T}>
-                <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:12 }}>
-                  <SI id="linkedin" size={16} color="#0A66C2"/>
-                  <input type="text" placeholder="linkedin.com/in/votre-profil"
-                    value={form.linkedin} onChange={e => setForm(p=>({...p,linkedin:e.target.value}))}
-                    style={{ flex:1, background:'transparent', border:'none', color:T.t1, fontSize:15, fontFamily:OT }}/>
-                </div>
-              </Row>
-              {showMoreSoc && SOCIALS.map((s, i) => (
-                <Row key={s.id} last={i===SOCIALS.length-1} theme={T}>
-                  <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:12 }}>
-                    <SI id={s.id} size={15} color={socials[s.id]?.trim() ? s.color : T.t3}/>
-                    <input type="text" placeholder={s.ph}
-                      value={socials[s.id]||''} onChange={e => setSoc(s.id, e.target.value)}
-                      style={{ flex:1, background:'transparent', border:'none', color:T.t1, fontSize:15, fontFamily:OT }}/>
-                  </div>
-                </Row>
-              ))}
-              {!showMoreSoc && (
-                <Row last onTap={() => setShowMoreSoc(true)} theme={T}>
-                  <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:10 }}>
-                    <div style={{ width:22, height:22, borderRadius:'50%', background:T.blue,
-                      display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round">
-                        <path d="M5.5 2v7M2 5.5h7"/>
-                      </svg>
-                    </div>
-                    <span style={{ fontSize:15, color:T.blue, fontWeight:500 }}>
-                      Autres réseaux
-                      {nFilled > 0 && <span style={{ background:grad.css, borderRadius:10, padding:'1px 7px',
-                        fontSize:10, fontWeight:600, color:'#fff', marginLeft:8,
-                        display:'inline-block', lineHeight:1.6 }}>{nFilled}</span>}
-                    </span>
-                  </div>
-                </Row>
-              )}
-            </Section>
-
-            {updateError && (
-              <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)',
-                borderRadius:12, padding:'12px 16px', marginBottom:12,
-                fontSize:13, color:T.red, lineHeight:1.6 }}>
-                {updateError}
+          {/* ══ ÉTAPE 1 : Couleur + Nom + Poste ══ */}
+          {!isEditing && onboardStep === 1 && (
+            <>
+              <div className="fu2"><ColorPicker/></div>
+              <div className="fu3">
+                <Section label="Identité" theme={T}>
+                  <TextRow placeholder="Prénom et Nom" value={form.name}
+                    onChange={v => setForm(p=>({...p,name:v}))} theme={T} autoComplete="name" maxLength={40}/>
+                  <TextRow placeholder="Poste / Titre" value={form.role}
+                    onChange={v => setForm(p=>({...p,role:v}))} last theme={T} autoComplete="organization-title" maxLength={50}/>
+                </Section>
               </div>
-            )}
-            <button onClick={isEditing ? doUpdate : doCreate}
-              disabled={!form.name.trim() || creating || handleStatus === 'taken' || handleStatus === 'checking'}
-              className="press" style={{
-              width:'100%', padding:'16px', borderRadius:14,
-              background:form.name.trim() && handleStatus !== 'taken' ? grad.css : T.s2,
-              color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
-              boxShadow:form.name.trim() && handleStatus !== 'taken' ? `0 8px 32px ${grad.sh}` : 'none',
-              opacity:form.name.trim() && !creating && handleStatus !== 'taken' && handleStatus !== 'checking' ? 1 : .45,
-              letterSpacing:.2,
-              cursor:form.name.trim() && !creating && handleStatus !== 'taken' && handleStatus !== 'checking' ? 'pointer' : 'not-allowed',
-              transition:'all .22s', marginTop:4 }}>
-              {creating
-                ? (isEditing ? 'Mise à jour…' : 'Création…')
-                : (isEditing ? 'Mettre à jour' : 'Créer ma carte')}
-            </button>
-            <div style={{ textAlign:'center', marginTop:11, fontSize:11, fontWeight:300,
-              color:T.t4, letterSpacing:.3 }}>
-              Aucune inscription · RGPD · Données sécurisées
-            </div>
-          </div>
+              <button onClick={doCreate} disabled={!form.name.trim() || creating}
+                className="press" style={{
+                  width:'100%', padding:'16px', borderRadius:14,
+                  background:form.name.trim() ? grad.css : T.s2,
+                  color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
+                  boxShadow:form.name.trim() ? `0 8px 32px ${grad.sh}` : 'none',
+                  opacity:form.name.trim() && !creating ? 1 : .45, letterSpacing:.2, marginTop:4,
+                  cursor:form.name.trim() && !creating ? 'pointer' : 'not-allowed',
+                  transition:'all .22s' }}>
+                {creating ? 'Création…' : 'Continuer →'}
+              </button>
+              <div style={{ textAlign:'center', marginTop:11, fontSize:11, fontWeight:300, color:T.t4, letterSpacing:.3 }}>
+                Aucune inscription · RGPD · Données sécurisées
+              </div>
+            </>
+          )}
+
+          {/* ══ ÉTAPE 2 : Détails optionnels ══ */}
+          {!isEditing && onboardStep === 2 && (
+            <>
+              <div className="fu2">
+                <Section label="Identité" theme={T}>
+                  <LogoRow/>
+                  <TextRow placeholder="Entreprise" value={form.company}
+                    onChange={v => setForm(p=>({...p,company:v}))} last theme={T} autoComplete="organization" maxLength={60}/>
+                </Section>
+              </div>
+              <div className="fu3"><ContactSection/></div>
+              <div className="fu4"><HandleSection/></div>
+              <div className="fu5"><SocialsSection/></div>
+              <div className="fu6">
+                {updateError && (
+                  <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)',
+                    borderRadius:12, padding:'12px 16px', marginBottom:12,
+                    fontSize:13, color:T.red, lineHeight:1.6 }}>
+                    {updateError}
+                  </div>
+                )}
+                <button onClick={doUpdate}
+                  disabled={creating || handleStatus === 'taken' || handleStatus === 'checking'}
+                  className="press" style={{
+                    width:'100%', padding:'16px', borderRadius:14,
+                    background:handleStatus !== 'taken' ? grad.css : T.s2,
+                    color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
+                    boxShadow:handleStatus !== 'taken' ? `0 8px 32px ${grad.sh}` : 'none',
+                    opacity:!creating && handleStatus !== 'taken' && handleStatus !== 'checking' ? 1 : .45,
+                    letterSpacing:.2, marginTop:4,
+                    cursor:!creating && handleStatus !== 'taken' && handleStatus !== 'checking' ? 'pointer' : 'not-allowed',
+                    transition:'all .22s' }}>
+                  {creating ? 'Mise à jour…' : 'Terminer'}
+                </button>
+                <button onClick={() => setScreen(authUser ? 'mycard' : 'auth')}
+                  style={{ width:'100%', padding:'13px', marginTop:8, borderRadius:12,
+                    background:'transparent', color:T.t3, fontSize:14, fontFamily:OT,
+                    border:'none', cursor:'pointer' }}>
+                  Plus tard →
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* ══ ÉDITION : formulaire complet ══ */}
+          {isEditing && (
+            <>
+              <div className="fu2"><ColorPicker/></div>
+              <div className="fu3">
+                <Section label="Identité" theme={T}>
+                  <LogoRow/>
+                  <TextRow placeholder="Prénom et Nom" value={form.name}    onChange={v => setForm(p=>({...p,name:v}))} theme={T} autoComplete="name"               maxLength={40}/>
+                  <TextRow placeholder="Poste / Titre"  value={form.role}    onChange={v => setForm(p=>({...p,role:v}))} theme={T} autoComplete="organization-title" maxLength={50}/>
+                  <TextRow placeholder="Entreprise"      value={form.company} onChange={v => setForm(p=>({...p,company:v}))} last theme={T} autoComplete="organization" maxLength={60}/>
+                </Section>
+              </div>
+              <div className="fu4"><ContactSection/></div>
+              <div className="fu5"><HandleSection showWarning/></div>
+              <div className="fu6">
+                <SocialsSection/>
+                {updateError && (
+                  <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)',
+                    borderRadius:12, padding:'12px 16px', marginBottom:12,
+                    fontSize:13, color:T.red, lineHeight:1.6 }}>
+                    {updateError}
+                  </div>
+                )}
+                <button onClick={doUpdate}
+                  disabled={!form.name.trim() || creating || handleStatus === 'taken' || handleStatus === 'checking'}
+                  className="press" style={{
+                    width:'100%', padding:'16px', borderRadius:14,
+                    background:form.name.trim() && handleStatus !== 'taken' ? grad.css : T.s2,
+                    color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
+                    boxShadow:form.name.trim() && handleStatus !== 'taken' ? `0 8px 32px ${grad.sh}` : 'none',
+                    opacity:form.name.trim() && !creating && handleStatus !== 'taken' && handleStatus !== 'checking' ? 1 : .45,
+                    letterSpacing:.2,
+                    cursor:form.name.trim() && !creating && handleStatus !== 'taken' && handleStatus !== 'checking' ? 'pointer' : 'not-allowed',
+                    transition:'all .22s', marginTop:4 }}>
+                  {creating ? 'Mise à jour…' : 'Mettre à jour'}
+                </button>
+                <div style={{ textAlign:'center', marginTop:11, fontSize:11, fontWeight:300,
+                  color:T.t4, letterSpacing:.3 }}>
+                  Aucune inscription · RGPD · Données sécurisées
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Country picker bottom sheet */}
