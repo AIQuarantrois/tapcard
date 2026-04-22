@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Cormorant_Garamond, Outfit } from 'next/font/google'
+import { Cormorant_Garamond, Inter } from 'next/font/google'
 import './globals.css'
 
 const cg = Cormorant_Garamond({
@@ -9,7 +9,7 @@ const cg = Cormorant_Garamond({
   display: 'swap',
 })
 
-const ot = Outfit({
+const ot = Inter({
   weight: ['300', '400', '500', '600', '700'],
   subsets: ['latin'],
   variable: '--font-ot',

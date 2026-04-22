@@ -17,6 +17,7 @@ import type { GradientState, Theme } from '@/lib/tokens'
 import type { Country } from '@/lib/countries'
 import { TEMPLATES, FONTS } from '@/lib/templates'
 import type { Template, FontChoice } from '@/lib/templates'
+import { lum, contrastRatio, autoText } from '@/lib/contrast'
 
 const CG = 'var(--font-cg), Georgia, serif'
 const OT = 'var(--font-ot), system-ui, sans-serif'
@@ -174,8 +175,8 @@ export default function TapCardApp() {
           ? makeGrad(data.gradient.c1, data.gradient.c2, data.gradient.ac)
           : grad
         setGrad(restoredGrad)
-        setTemplate(data.template ?? 'gradient')
-        setFont(data.font ?? 'serif')
+        setTemplate(data.template === 'solid' ? 'solid' : 'gradient')
+        setFont(data.font === 'mono' ? 'mono' : data.font === 'serif' ? 'serif' : 'sans')
         setUser({
           name: data.name || '', role: data.role, company: data.company,
           email: data.email, phone: data.phone, phone2: data.phone2,
@@ -216,8 +217,8 @@ export default function TapCardApp() {
           const av = ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase() || 'TC'
           const g = data.gradient ? makeGrad(data.gradient.c1, data.gradient.c2, data.gradient.ac) : grad
           setGrad(g)
-          setTemplate(data.template ?? 'gradient')
-          setFont(data.font ?? 'serif')
+          setTemplate(data.template === 'solid' ? 'solid' : 'gradient')
+          setFont(data.font === 'mono' ? 'mono' : data.font === 'serif' ? 'serif' : 'sans')
           setUser({ name:data.name||'', role:data.role, company:data.company,
             email:data.email, phone:data.phone, phone2:data.phone2,
             website:data.website, address:data.address, linkedin:data.linkedin,
@@ -332,6 +333,7 @@ export default function TapCardApp() {
         localStorage.setItem(`tc_token_${data.handle}`, data.id)
         setConnectionCount(0)
         setOnboardStep(2)
+        window.scrollTo({ top: 0, behavior: 'instant' })
       }
     } finally {
       setCreating(false)
@@ -412,8 +414,8 @@ export default function TapCardApp() {
     setSocials(user.socials || {})
     if (user.country)   setCountry(user.country)
     if (user.gradient)  setGrad(user.gradient)
-    setTemplate(user.template ?? 'gradient')
-    setFont(user.font ?? 'serif')
+    setTemplate(user.template === 'solid' ? 'solid' : 'gradient')
+    setFont(user.font === 'mono' ? 'mono' : user.font === 'serif' ? 'serif' : 'sans')
     setLogoUrl(user.logo || null)
     setUpdateError('')
     setIsEditing(true)
@@ -721,51 +723,75 @@ export default function TapCardApp() {
     )
 
     /* Template picker */
-    const TemplatePicker = () => (
-      <div style={{ background:T.s1, borderRadius:14, border:`1px solid ${T.sep}`, marginBottom:28, overflow:'hidden' }}>
-        <div style={{ padding:'12px 16px 10px', borderBottom:`1px solid ${T.sep}` }}>
-          <div style={{ fontFamily:OT, fontSize:12, fontWeight:500, color:T.t3, letterSpacing:.5, textTransform:'uppercase' }}>
-            Template
+    const TemplatePicker = () => {
+      const solidBg   = grad.c1
+      const solidDark = lum(solidBg) <= 0.22
+      const solidTextColor = autoText(solidBg)
+      const ratio = contrastRatio(solidTextColor, solidBg)
+      const contrastOk  = ratio >= 4.5
+      const contrastMid = ratio >= 3
+      return (
+        <div style={{ background:T.s1, borderRadius:14, border:`1px solid ${T.sep}`, marginBottom:28, overflow:'hidden' }}>
+          <div style={{ padding:'12px 16px 10px', borderBottom:`1px solid ${T.sep}` }}>
+            <div style={{ fontFamily:OT, fontSize:12, fontWeight:500, color:T.t3, letterSpacing:.5, textTransform:'uppercase' }}>
+              Template
+            </div>
           </div>
-        </div>
-        <div style={{ display:'flex', gap:8, padding:'14px 16px' }}>
-          {TEMPLATES.map(t => {
-            const active = template === t.id
-            return (
-              <button key={t.id} onClick={() => setTemplate(t.id)}
-                style={{ flex:1, borderRadius:12, overflow:'hidden', padding:0,
-                  border:`2.5px solid ${active ? grad.ac : T.sep}`,
-                  transition:'all .2s', background:T.s2, cursor:'pointer' }}>
-                {t.id === 'gradient' && (
-                  <div style={{ height:52, background:grad.css, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    <div style={{ width:22, height:22, borderRadius:'50%', background:'rgba(255,255,255,.28)' }}/>
-                  </div>
-                )}
-                {t.id === 'minimal' && (
-                  <div style={{ height:52, background:'#0F0F17', display:'flex', alignItems:'center', padding:'0 10px', gap:6, borderLeft:`2.5px solid ${grad.ac}` }}>
-                    <div style={{ width:16, height:16, borderRadius:'50%', border:`1px solid ${grad.ac}`, background:`${grad.ac}22` }}/>
-                    <div style={{ flex:1 }}>
-                      <div style={{ height:5, borderRadius:2, marginBottom:4, background:`linear-gradient(90deg,${grad.c1},${grad.c2})`, width:'68%' }}/>
-                      <div style={{ height:3, borderRadius:2, background:'rgba(255,255,255,.15)', width:'45%' }}/>
+          <div style={{ display:'flex', gap:8, padding:'14px 16px 10px' }}>
+            {TEMPLATES.map(t => {
+              const active = template === t.id
+              return (
+                <button key={t.id} onClick={() => setTemplate(t.id)}
+                  style={{ flex:1, borderRadius:8, overflow:'hidden', padding:0,
+                    border:`2px solid ${active ? grad.ac : T.sep}`,
+                    transition:'all .18s', background:T.s2, cursor:'pointer' }}>
+                  {t.id === 'gradient' && (
+                    <div style={{ height:52, background:grad.css, display:'flex', flexDirection:'column',
+                      alignItems:'flex-start', justifyContent:'space-between', padding:'8px 10px' }}>
+                      <div style={{ width:16, height:16, borderRadius:4, background:'rgba(255,255,255,.22)',
+                        boxShadow:'inset 0 0 0 1px rgba(255,255,255,.28)' }}/>
+                      <div>
+                        <div style={{ height:5, borderRadius:2, marginBottom:3, background:'rgba(255,255,255,.85)', width:36 }}/>
+                        <div style={{ height:3, borderRadius:2, background:'rgba(255,255,255,.40)', width:24 }}/>
+                      </div>
                     </div>
+                  )}
+                  {t.id === 'solid' && (
+                    <div style={{ height:52, background:solidBg, display:'flex', flexDirection:'column',
+                      alignItems:'flex-start', justifyContent:'space-between', padding:'8px 10px',
+                      borderLeft:`2.5px solid ${grad.ac}` }}>
+                      <div style={{ width:16, height:16, borderRadius:4,
+                        background: solidDark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.09)',
+                        boxShadow:`inset 0 0 0 1px ${solidDark ? 'rgba(255,255,255,.22)' : 'rgba(0,0,0,.14)'}` }}/>
+                      <div>
+                        <div style={{ height:5, borderRadius:2, marginBottom:3,
+                          background: solidDark ? 'rgba(255,255,255,.82)' : 'rgba(0,0,0,.72)', width:36 }}/>
+                        <div style={{ height:3, borderRadius:2,
+                          background: solidDark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.30)', width:24 }}/>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ padding:'5px 0 7px', textAlign:'center', fontSize:10, fontFamily:OT,
+                    color:active ? grad.ac : T.t3, fontWeight:active ? 600 : 400 }}>
+                    {t.label}
                   </div>
-                )}
-                {t.id === 'bold' && (
-                  <div style={{ height:52, background:'#06060B', display:'flex', alignItems:'center', padding:'0 10px', gap:8 }}>
-                    <div style={{ width:16, height:16, borderRadius:'50%', background:grad.css }}/>
-                    <div style={{ height:8, borderRadius:2, flex:1, background:`linear-gradient(90deg,${grad.c1},${grad.c2})` }}/>
-                  </div>
-                )}
-                <div style={{ padding:'6px 0 8px', textAlign:'center', fontSize:10, fontFamily:OT,
-                  color:active ? grad.ac : T.t3, fontWeight:active ? 600 : 400 }}>
-                  {t.label}
-                </div>
-              </button>
-            )
-          })}
+                </button>
+              )
+            })}
+          </div>
+          {/* Contrast indicator — visible for solid template */}
+          {template === 'solid' && (
+            <div style={{ padding:'0 16px 12px', display:'flex', alignItems:'center', gap:6,
+              fontSize:11, fontFamily:OT,
+              color: contrastOk ? '#4ade80' : contrastMid ? '#fbbf24' : T.red }}>
+              <div style={{ width:6, height:6, borderRadius:'50%', flexShrink:0,
+                background: contrastOk ? '#4ade80' : contrastMid ? '#fbbf24' : T.red }}/>
+              Contraste {ratio.toFixed(1)}:1 · {contrastOk ? 'Excellent ✓' : contrastMid ? 'Acceptable' : 'Insuffisant ⚠'}
+            </div>
+          )}
         </div>
-      </div>
-    )
+      )
+    }
 
     /* Font picker */
     const FontPicker = () => (
@@ -897,15 +923,17 @@ export default function TapCardApp() {
         </div>
 
         <div style={{ padding:'0 16px 130px' }}>
-          {/* Aperçu carte — toujours visible */}
-          <div className="fu1" style={{ marginBottom:32 }}><BusinessCard u={pu}/></div>
+          {/* Aperçu carte — sticky */}
+          <div style={{ position:'sticky', top:12, zIndex:20, marginBottom:24 }}>
+            <BusinessCard u={pu}/>
+          </div>
 
           {/* ══ ÉTAPE 1 : Couleur + Nom + Poste ══ */}
           {!isEditing && onboardStep === 1 && (
             <>
-              <div className="fu2"><ColorPicker/></div>
-              <div className="fu2b"><TemplatePicker/></div>
-              <div className="fu2c"><FontPicker/></div>
+              <div className="fu2">{ColorPicker()}</div>
+              <div className="fu2b">{TemplatePicker()}</div>
+              <div className="fu2c">{FontPicker()}</div>
               <div className="fu3">
                 <Section label="Identité" theme={T}>
                   <TextRow placeholder="Prénom et Nom" value={form.name}
@@ -936,14 +964,14 @@ export default function TapCardApp() {
             <>
               <div className="fu2">
                 <Section label="Identité" theme={T}>
-                  <LogoRow/>
+                  {LogoRow()}
                   <TextRow placeholder="Entreprise" value={form.company}
                     onChange={v => setForm(p=>({...p,company:v}))} last theme={T} autoComplete="organization" maxLength={60}/>
                 </Section>
               </div>
-              <div className="fu3"><ContactSection/></div>
-              <div className="fu4"><HandleSection/></div>
-              <div className="fu5"><SocialsSection/></div>
+              <div className="fu3">{ContactSection()}</div>
+              <div className="fu4">{HandleSection({})}</div>
+              <div className="fu5">{SocialsSection()}</div>
               <div className="fu6">
                 {updateError && (
                   <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)',
@@ -978,21 +1006,21 @@ export default function TapCardApp() {
           {/* ══ ÉDITION : formulaire complet ══ */}
           {isEditing && (
             <>
-              <div className="fu2"><ColorPicker/></div>
-              <div className="fu2b"><TemplatePicker/></div>
-              <div className="fu2c"><FontPicker/></div>
+              <div className="fu2">{ColorPicker()}</div>
+              <div className="fu2b">{TemplatePicker()}</div>
+              <div className="fu2c">{FontPicker()}</div>
               <div className="fu3">
                 <Section label="Identité" theme={T}>
-                  <LogoRow/>
+                  {LogoRow()}
                   <TextRow placeholder="Prénom et Nom" value={form.name}    onChange={v => setForm(p=>({...p,name:v}))} theme={T} autoComplete="name"               maxLength={40}/>
                   <TextRow placeholder="Poste / Titre"  value={form.role}    onChange={v => setForm(p=>({...p,role:v}))} theme={T} autoComplete="organization-title" maxLength={50}/>
                   <TextRow placeholder="Entreprise"      value={form.company} onChange={v => setForm(p=>({...p,company:v}))} last theme={T} autoComplete="organization" maxLength={60}/>
                 </Section>
               </div>
-              <div className="fu4"><ContactSection/></div>
-              <div className="fu5"><HandleSection showWarning/></div>
+              <div className="fu4">{ContactSection()}</div>
+              <div className="fu5">{HandleSection({ showWarning: true })}</div>
               <div className="fu6">
-                <SocialsSection/>
+                {SocialsSection()}
                 {updateError && (
                   <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)',
                     borderRadius:12, padding:'12px 16px', marginBottom:12,
