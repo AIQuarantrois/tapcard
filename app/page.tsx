@@ -15,6 +15,8 @@ import { COUNTRIES } from '@/lib/countries'
 import { SOCIALS, getFilledSocials } from '@/lib/socials'
 import type { GradientState, Theme } from '@/lib/tokens'
 import type { Country } from '@/lib/countries'
+import { TEMPLATES, FONTS } from '@/lib/templates'
+import type { Template, FontChoice } from '@/lib/templates'
 
 const CG = 'var(--font-cg), Georgia, serif'
 const OT = 'var(--font-ot), system-ui, sans-serif'
@@ -36,6 +38,7 @@ interface UserState {
   av: string; logo?: string | null
   gradient: GradientState; country?: Country
   view_count?: number
+  template?: Template; font?: FontChoice
 }
 
 interface Contact {
@@ -134,6 +137,8 @@ export default function TapCardApp() {
   const [contactSort,     setContactSort]     = useState<'date' | 'name'>('date')
   const [contactPage,     setContactPage]     = useState(1)
   const [showScanner,     setShowScanner]     = useState(false)
+  const [template,        setTemplate]        = useState<Template>('gradient')
+  const [font,            setFont]            = useState<FontChoice>('serif')
   const [onboardStep,     setOnboardStep]     = useState<1|2>(1)
   const [authUser,        setAuthUser]        = useState<User | null>(null)
   const [authEmail,       setAuthEmail]       = useState('')
@@ -169,6 +174,8 @@ export default function TapCardApp() {
           ? makeGrad(data.gradient.c1, data.gradient.c2, data.gradient.ac)
           : grad
         setGrad(restoredGrad)
+        setTemplate(data.template ?? 'gradient')
+        setFont(data.font ?? 'serif')
         setUser({
           name: data.name || '', role: data.role, company: data.company,
           email: data.email, phone: data.phone, phone2: data.phone2,
@@ -177,6 +184,7 @@ export default function TapCardApp() {
           logo: data.logo_url, gradient: restoredGrad,
           country: COUNTRIES.find(c => c.code === data.country_code) ?? COUNTRIES[1],
           view_count: data.view_count ?? 0,
+          template: data.template ?? 'gradient', font: data.font ?? 'serif',
         })
         setScreen('mycard')
       })
@@ -208,12 +216,15 @@ export default function TapCardApp() {
           const av = ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase() || 'TC'
           const g = data.gradient ? makeGrad(data.gradient.c1, data.gradient.c2, data.gradient.ac) : grad
           setGrad(g)
+          setTemplate(data.template ?? 'gradient')
+          setFont(data.font ?? 'serif')
           setUser({ name:data.name||'', role:data.role, company:data.company,
             email:data.email, phone:data.phone, phone2:data.phone2,
             website:data.website, address:data.address, linkedin:data.linkedin,
             handle:data.handle, socials:data.socials||{}, av, logo:data.logo_url,
             gradient:g, country:COUNTRIES.find(c=>c.code===data.country_code)??COUNTRIES[1],
-            view_count:data.view_count??0 })
+            view_count:data.view_count??0,
+            template:data.template??'gradient', font:data.font??'serif' })
           localStorage.setItem('tc_handle', data.handle)
           setScreen('mycard')
         })
@@ -305,6 +316,8 @@ export default function TapCardApp() {
           gradient:     { c1:grad.c1, c2:grad.c2, ac:grad.ac },
           logo_url:     logoUrl,
           country_code: country.code,
+          template,
+          font,
         }),
       })
 
@@ -314,7 +327,7 @@ export default function TapCardApp() {
           email:form.email, phone:form.phone ? `${country.dial} ${form.phone}` : '',
           phone2:form.phone2, website:form.website, address:form.address,
           linkedin:form.linkedin, handle:data.handle, socials, av, logo:logoUrl, gradient:grad, country,
-          view_count: data.view_count ?? 0 })
+          view_count: data.view_count ?? 0, template, font })
         localStorage.setItem('tc_handle', data.handle)
         localStorage.setItem(`tc_token_${data.handle}`, data.id)
         setConnectionCount(0)
@@ -358,6 +371,8 @@ export default function TapCardApp() {
           gradient:     { c1:grad.c1, c2:grad.c2, ac:grad.ac },
           logo_url:     logoUrl,
           country_code: country.code,
+          template,
+          font,
         }),
       })
       if (res.ok) {
@@ -372,7 +387,7 @@ export default function TapCardApp() {
           email:form.email, phone:form.phone ? `${country.dial} ${form.phone}` : '',
           phone2:form.phone2, website:form.website, address:form.address,
           linkedin:form.linkedin, handle:finalHandle, socials, av, logo:logoUrl, gradient:grad, country,
-          view_count: user.view_count })
+          view_count: user.view_count, template, font })
         setIsEditing(false)
         setOnboardStep(1)
         setScreen('mycard')
@@ -397,6 +412,8 @@ export default function TapCardApp() {
     setSocials(user.socials || {})
     if (user.country)   setCountry(user.country)
     if (user.gradient)  setGrad(user.gradient)
+    setTemplate(user.template ?? 'gradient')
+    setFont(user.font ?? 'serif')
     setLogoUrl(user.logo || null)
     setUpdateError('')
     setIsEditing(true)
@@ -603,7 +620,8 @@ export default function TapCardApp() {
     const pav = ((pn.split(' ')[0]?.[0]??'V')+(pn.split(' ')[1]?.[0]??'N')).toUpperCase()
     const ph  = form.handle || (pn.split(' ')[0]||'vous').toLowerCase()
     const pu  = { name:pn, role:pr, company:form.company, socials,
-                  linkedin:form.linkedin, av:pav, logo:logoUrl, gradient:grad, handle:ph }
+                  linkedin:form.linkedin, av:pav, logo:logoUrl, gradient:grad, handle:ph,
+                  template, font }
     const nFilled = [form.linkedin,...Object.values(socials)].filter(v=>v?.trim()).length
 
     /* Barre de progression — 3 segments */
@@ -700,6 +718,84 @@ export default function TapCardApp() {
           </div>
         )}
       </Section>
+    )
+
+    /* Template picker */
+    const TemplatePicker = () => (
+      <div style={{ background:T.s1, borderRadius:14, border:`1px solid ${T.sep}`, marginBottom:28, overflow:'hidden' }}>
+        <div style={{ padding:'12px 16px 10px', borderBottom:`1px solid ${T.sep}` }}>
+          <div style={{ fontFamily:OT, fontSize:12, fontWeight:500, color:T.t3, letterSpacing:.5, textTransform:'uppercase' }}>
+            Template
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:8, padding:'14px 16px' }}>
+          {TEMPLATES.map(t => {
+            const active = template === t.id
+            return (
+              <button key={t.id} onClick={() => setTemplate(t.id)}
+                style={{ flex:1, borderRadius:12, overflow:'hidden', padding:0,
+                  border:`2.5px solid ${active ? grad.ac : T.sep}`,
+                  transition:'all .2s', background:T.s2, cursor:'pointer' }}>
+                {t.id === 'gradient' && (
+                  <div style={{ height:52, background:grad.css, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <div style={{ width:22, height:22, borderRadius:'50%', background:'rgba(255,255,255,.28)' }}/>
+                  </div>
+                )}
+                {t.id === 'minimal' && (
+                  <div style={{ height:52, background:'#0F0F17', display:'flex', alignItems:'center', padding:'0 10px', gap:6, borderLeft:`2.5px solid ${grad.ac}` }}>
+                    <div style={{ width:16, height:16, borderRadius:'50%', border:`1px solid ${grad.ac}`, background:`${grad.ac}22` }}/>
+                    <div style={{ flex:1 }}>
+                      <div style={{ height:5, borderRadius:2, marginBottom:4, background:`linear-gradient(90deg,${grad.c1},${grad.c2})`, width:'68%' }}/>
+                      <div style={{ height:3, borderRadius:2, background:'rgba(255,255,255,.15)', width:'45%' }}/>
+                    </div>
+                  </div>
+                )}
+                {t.id === 'bold' && (
+                  <div style={{ height:52, background:'#06060B', display:'flex', alignItems:'center', padding:'0 10px', gap:8 }}>
+                    <div style={{ width:16, height:16, borderRadius:'50%', background:grad.css }}/>
+                    <div style={{ height:8, borderRadius:2, flex:1, background:`linear-gradient(90deg,${grad.c1},${grad.c2})` }}/>
+                  </div>
+                )}
+                <div style={{ padding:'6px 0 8px', textAlign:'center', fontSize:10, fontFamily:OT,
+                  color:active ? grad.ac : T.t3, fontWeight:active ? 600 : 400 }}>
+                  {t.label}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+
+    /* Font picker */
+    const FontPicker = () => (
+      <div style={{ background:T.s1, borderRadius:14, border:`1px solid ${T.sep}`, marginBottom:28, overflow:'hidden' }}>
+        <div style={{ padding:'12px 16px 10px', borderBottom:`1px solid ${T.sep}` }}>
+          <div style={{ fontFamily:OT, fontSize:12, fontWeight:500, color:T.t3, letterSpacing:.5, textTransform:'uppercase' }}>
+            Typographie
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:0, padding:'12px 16px' }}>
+          {FONTS.map(f => {
+            const active = font === f.id
+            return (
+              <button key={f.id} onClick={() => setFont(f.id)}
+                style={{ flex:1, borderRadius:10, padding:'10px 8px',
+                  background:active ? `${grad.ac}18` : 'transparent',
+                  border:`1.5px solid ${active ? grad.ac : 'transparent'}`,
+                  transition:'all .2s', display:'flex', flexDirection:'column', alignItems:'center', gap:4,
+                  cursor:'pointer' }}>
+                <span style={{ fontFamily:f.family, fontSize:22, color:active ? grad.ac : T.t2,
+                  lineHeight:1, fontWeight:600 }}>Ag</span>
+                <span style={{ fontFamily:OT, fontSize:10, color:active ? grad.ac : T.t3,
+                  fontWeight:active ? 600 : 400 }}>
+                  {f.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
     )
 
     /* Socials section — réutilisé dans étape 2 et isEditing */
@@ -808,6 +904,8 @@ export default function TapCardApp() {
           {!isEditing && onboardStep === 1 && (
             <>
               <div className="fu2"><ColorPicker/></div>
+              <div className="fu2b"><TemplatePicker/></div>
+              <div className="fu2c"><FontPicker/></div>
               <div className="fu3">
                 <Section label="Identité" theme={T}>
                   <TextRow placeholder="Prénom et Nom" value={form.name}
@@ -881,6 +979,8 @@ export default function TapCardApp() {
           {isEditing && (
             <>
               <div className="fu2"><ColorPicker/></div>
+              <div className="fu2b"><TemplatePicker/></div>
+              <div className="fu2c"><FontPicker/></div>
               <div className="fu3">
                 <Section label="Identité" theme={T}>
                   <LogoRow/>

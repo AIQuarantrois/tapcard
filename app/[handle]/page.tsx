@@ -99,6 +99,8 @@ export default async function PublicCardPage({ params }: { params: { handle: str
               logo_url: card.logo_url,
               gradient: grad,
               handle:   card.handle,
+              template: card.template,
+              font:     card.font,
             }}
             large
           />

@@ -1,6 +1,7 @@
 import { Globe } from 'lucide-react'
 import { getFilledSocials } from '@/lib/socials'
 import type { GradientState } from '@/lib/types'
+import type { Template, FontChoice } from '@/lib/templates'
 
 /* ─── Social Icons ─── */
 function SI({ id, size = 14, color = 'currentColor' }: { id: string; size?: number; color?: string }) {
@@ -21,7 +22,7 @@ function SI({ id, size = 14, color = 'currentColor' }: { id: string; size?: numb
 
 export { SI }
 
-/* ─── Card User shape accepted by BusinessCard ─── */
+/* ─── Card User shape ─── */
 export interface CardUser {
   name?:     string
   role?:     string
@@ -35,6 +36,8 @@ export interface CardUser {
   logo_url?: string | null
   gradient?: GradientState
   handle?:   string
+  template?: Template
+  font?:     FontChoice
 }
 
 interface Props {
@@ -44,66 +47,75 @@ interface Props {
   floating?: boolean
 }
 
-const CG = 'var(--font-cg), Georgia, serif'
+const OT = 'var(--font-ot), system-ui, sans-serif'
+
+/* QR icon shared across templates */
+function QRMark({ size, fill }: { size: number; fill: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill={fill}>
+      <rect x="1"    y="1"    width="6"   height="6"   rx="1.5"/>
+      <rect x="13"   y="1"    width="6"   height="6"   rx="1.5"/>
+      <rect x="1"    y="13"   width="6"   height="6"   rx="1.5"/>
+      <rect x="9"    y="9"    width="3"   height="3"/>
+      <rect x="14"   y="14"   width="2.5" height="2.5"/>
+      <rect x="16.5" y="16.5" width="2.5" height="2.5"/>
+    </svg>
+  )
+}
 
 export default function BusinessCard({ u, grad, large = false, floating = false }: Props) {
-  const g   = u?.gradient ?? grad ?? { css: 'linear-gradient(140deg,#6D28D9,#DB2777)', sh: '#6D28D980', ac: '#8B5CF6', c1: '#6D28D9', c2: '#DB2777' }
-  const soc = getFilledSocials(u?.linkedin, u?.socials)
-  const av  = u?.av ?? 'TC'
+  const g    = u?.gradient ?? grad ?? { css: 'linear-gradient(140deg,#6D28D9,#DB2777)', sh: '#6D28D980', ac: '#8B5CF6', c1: '#6D28D9', c2: '#DB2777' }
+  const soc  = getFilledSocials(u?.linkedin, u?.socials)
+  const av   = u?.av ?? 'TC'
   const src: string | null = u?.logo ?? u?.logo_url ?? null
-  const W   = large ? 60 : 46
-  const R   = large ? 17 : 13
-  const FS  = large ? 18 : 14
+  const W    = large ? 60 : 46
+  const R    = large ? 17 : 13
+  const FS   = large ? 18 : 14
+  const tmpl = u?.template ?? 'gradient'
+  const qrSz = large ? 22 : 17
 
-  return (
-    <div
-      className={floating ? 'flt' : ''}
-      style={{
-        borderRadius: large ? 24 : 20,
-        background:   g.css,
-        padding:      large ? '32px 28px 26px' : '22px 20px 18px',
-        boxShadow:    `0 ${large ? 22 : 10}px ${large ? 64 : 36}px ${g.sh}, 0 2px 14px rgba(0,0,0,.5)`,
-        position: 'relative', overflow: 'hidden',
-      }}
-    >
-      {/* Inner glow */}
+  const nameFont = u?.font === 'sans' ? OT
+                 : u?.font === 'mono' ? "'Courier New','SF Mono',Consolas,monospace"
+                 : 'var(--font-cg),Georgia,serif'
+
+  /* ── GRADIENT ─────────────────────────────────────────────────────────── */
+  if (tmpl === 'gradient') return (
+    <div className={floating ? 'flt' : ''} style={{
+      borderRadius: large ? 24 : 20, background: g.css,
+      padding: large ? '32px 28px 26px' : '22px 20px 18px',
+      boxShadow: `0 ${large ? 22 : 10}px ${large ? 64 : 36}px ${g.sh}, 0 2px 14px rgba(0,0,0,.5)`,
+      position: 'relative', overflow: 'hidden',
+    }}>
       <div style={{ position:'absolute', top:-50, right:-50, width:200, height:200,
-        background:'radial-gradient(circle,rgba(255,255,255,.15),transparent 65%)',
-        pointerEvents:'none' }}/>
-
+        background:'radial-gradient(circle,rgba(255,255,255,.15),transparent 65%)', pointerEvents:'none' }}/>
       <div style={{ position:'relative', display:'flex', flexDirection:'column', gap: large ? 20 : 14 }}>
         {/* Name + avatar */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12 }}>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontFamily:CG, fontSize: large ? 32 : 22, fontWeight:600, color:'#fff',
-              lineHeight:1.08, letterSpacing:-.3,
-              overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            <div style={{ fontFamily:nameFont, fontSize: large ? 32 : 22, fontWeight:600, color:'#fff',
+              lineHeight:1.08, letterSpacing:-.3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
               {u?.name ?? 'Votre Nom'}
             </div>
-            <div style={{ fontFamily:'var(--font-ot),system-ui,sans-serif', fontSize: large ? 13 : 11,
-              fontWeight:400, color:'rgba(255,255,255,.72)', marginTop:5, letterSpacing:.2 }}>
+            <div style={{ fontFamily:OT, fontSize: large ? 13 : 11, fontWeight:400,
+              color:'rgba(255,255,255,.72)', marginTop:5, letterSpacing:.2 }}>
               {u?.role ?? 'Poste'}
             </div>
             {u?.company && (
-              <div style={{ fontFamily:'var(--font-ot),system-ui,sans-serif', fontSize: large ? 12 : 10,
-                fontWeight:300, color:'rgba(255,255,255,.45)', marginTop:2 }}>
+              <div style={{ fontFamily:OT, fontSize: large ? 12 : 10, fontWeight:300,
+                color:'rgba(255,255,255,.45)', marginTop:2 }}>
                 {u.company}
               </div>
             )}
           </div>
-          {/* Avatar */}
           <div style={{ width:W, height:W, borderRadius:R, flexShrink:0,
             background: src ? 'transparent' : 'rgba(255,255,255,.2)',
             backdropFilter: src ? 'none' : 'blur(10px)',
             overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
-            fontFamily:CG, fontSize:FS, fontWeight:600, color:'#fff',
+            fontFamily:nameFont, fontSize:FS, fontWeight:600, color:'#fff',
             boxShadow:'inset 0 0 0 1px rgba(255,255,255,.2)' }}>
-            {src
-              ? <img src={src} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
-              : av}
+            {src ? <img src={src} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : av}
           </div>
         </div>
-
         {/* Social dots */}
         {soc.length > 0 && (
           <div style={{ display:'flex', gap:6 }}>
@@ -118,21 +130,147 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
             ))}
           </div>
         )}
-
         {/* Footer */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <div style={{ fontFamily:'var(--font-ot),system-ui,sans-serif', fontSize:10,
-            fontWeight:300, color:'rgba(255,255,255,.38)', letterSpacing:.5 }}>
+          <div style={{ fontFamily:OT, fontSize:10, fontWeight:300,
+            color:'rgba(255,255,255,.38)', letterSpacing:.5 }}>
             tapcard.io/{u?.handle ?? 'vous'}
           </div>
-          <svg width={large ? 22 : 17} height={large ? 22 : 17} viewBox="0 0 20 20" fill="rgba(255,255,255,.42)">
-            <rect x="1"   y="1"   width="6"   height="6"   rx="1.5"/>
-            <rect x="13"  y="1"   width="6"   height="6"   rx="1.5"/>
-            <rect x="1"   y="13"  width="6"   height="6"   rx="1.5"/>
-            <rect x="9"   y="9"   width="3"   height="3"/>
-            <rect x="14"  y="14"  width="2.5" height="2.5"/>
-            <rect x="16.5" y="16.5" width="2.5" height="2.5"/>
-          </svg>
+          <QRMark size={qrSz} fill="rgba(255,255,255,.42)"/>
+        </div>
+      </div>
+    </div>
+  )
+
+  /* ── MINIMAL ──────────────────────────────────────────────────────────── */
+  if (tmpl === 'minimal') return (
+    <div className={floating ? 'flt' : ''} style={{
+      borderRadius: large ? 24 : 20, background: '#0F0F17',
+      padding: large ? '32px 28px 26px' : '22px 20px 18px',
+      boxShadow: `0 ${large ? 22 : 10}px ${large ? 64 : 36}px rgba(0,0,0,.65), 0 2px 14px rgba(0,0,0,.5)`,
+      position: 'relative', overflow: 'hidden',
+      borderLeft: `3px solid ${g.ac}`,
+    }}>
+      <div style={{ position:'absolute', top:-50, right:-50, width:220, height:220,
+        background:`radial-gradient(circle,${g.ac}14,transparent 65%)`, pointerEvents:'none' }}/>
+      <div style={{ position:'relative', display:'flex', flexDirection:'column', gap: large ? 20 : 14 }}>
+        {/* Name + avatar */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontFamily:nameFont, fontSize: large ? 32 : 22, fontWeight:600,
+              background:g.css, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
+              lineHeight:1.08, letterSpacing:-.3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {u?.name ?? 'Votre Nom'}
+            </div>
+            <div style={{ fontFamily:OT, fontSize: large ? 13 : 11, fontWeight:400,
+              color:'rgba(245,245,247,.62)', marginTop:5, letterSpacing:.2 }}>
+              {u?.role ?? 'Poste'}
+            </div>
+            {u?.company && (
+              <div style={{ fontFamily:OT, fontSize: large ? 12 : 10, fontWeight:300,
+                color:'rgba(245,245,247,.36)', marginTop:2 }}>
+                {u.company}
+              </div>
+            )}
+          </div>
+          <div style={{ width:W, height:W, borderRadius:R, flexShrink:0,
+            background: src ? 'transparent' : 'transparent',
+            overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
+            fontFamily:nameFont, fontSize:FS, fontWeight:600, color:g.ac,
+            boxShadow:`inset 0 0 0 1.5px ${g.ac}55` }}>
+            {src ? <img src={src} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : av}
+          </div>
+        </div>
+        {/* Social dots */}
+        {soc.length > 0 && (
+          <div style={{ display:'flex', gap:6 }}>
+            {soc.slice(0, large ? 8 : 5).map(s => (
+              <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer"
+                style={{ width: large ? 28 : 22, height: large ? 28 : 22, borderRadius:'50%',
+                  background:`${g.ac}18`, border:`1px solid ${g.ac}44`,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  textDecoration:'none', flexShrink:0 }}>
+                <SI id={s.id} size={large ? 14 : 11} color={g.ac}/>
+              </a>
+            ))}
+          </div>
+        )}
+        {/* Footer */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ fontFamily:OT, fontSize:10, fontWeight:300,
+            color:'rgba(245,245,247,.30)', letterSpacing:.5 }}>
+            tapcard.io/{u?.handle ?? 'vous'}
+          </div>
+          <QRMark size={qrSz} fill={`${g.ac}66`}/>
+        </div>
+      </div>
+    </div>
+  )
+
+  /* ── BOLD ─────────────────────────────────────────────────────────────── */
+  return (
+    <div className={floating ? 'flt' : ''} style={{
+      borderRadius: large ? 24 : 20, background: '#06060B',
+      padding: large ? '28px 28px 24px' : '20px 20px 16px',
+      boxShadow: `0 ${large ? 22 : 10}px ${large ? 64 : 36}px rgba(0,0,0,.75), 0 2px 14px rgba(0,0,0,.5)`,
+      position: 'relative', overflow: 'hidden',
+    }}>
+      <div style={{ position:'absolute', bottom:-60, left:-20, right:-20, height:160,
+        background:`linear-gradient(to top,${g.c1}22,transparent)`, pointerEvents:'none' }}/>
+      <div style={{ position:'relative', display:'flex', flexDirection:'column', gap: large ? 16 : 11 }}>
+        {/* LARGE name + underline */}
+        <div>
+          <div style={{ fontFamily:nameFont, fontSize: large ? 38 : 28, fontWeight:700,
+            background:g.css, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
+            lineHeight:1.05, letterSpacing:-.5, wordBreak:'break-word' }}>
+            {u?.name ?? 'Votre Nom'}
+          </div>
+          <div style={{ height:2, width: large ? 80 : 60, background:g.css,
+            borderRadius:1, marginTop: large ? 7 : 5 }}/>
+        </div>
+        {/* Role + compact avatar */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontFamily:OT, fontSize: large ? 13 : 11, fontWeight:400,
+              color:'rgba(245,245,247,.65)' }}>
+              {u?.role ?? 'Poste'}
+            </div>
+            {u?.company && (
+              <div style={{ fontFamily:OT, fontSize: large ? 12 : 10, fontWeight:300,
+                color:'rgba(245,245,247,.35)', marginTop:1 }}>
+                {u.company}
+              </div>
+            )}
+          </div>
+          <div style={{ width: large ? 44 : 34, height: large ? 44 : 34,
+            borderRadius: large ? 12 : 9, flexShrink:0,
+            background: src ? 'transparent' : g.css,
+            overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
+            fontFamily:nameFont, fontSize: large ? 14 : 11, fontWeight:600, color:'#fff' }}>
+            {src ? <img src={src} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : av}
+          </div>
+        </div>
+        {/* Social dots */}
+        {soc.length > 0 && (
+          <div style={{ display:'flex', gap:6 }}>
+            {soc.slice(0, large ? 8 : 5).map(s => (
+              <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer"
+                style={{ width: large ? 28 : 22, height: large ? 28 : 22, borderRadius:'50%',
+                  background:`${g.ac}20`, border:`1px solid ${g.ac}40`,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  textDecoration:'none', flexShrink:0 }}>
+                <SI id={s.id} size={large ? 14 : 11} color={g.ac}/>
+              </a>
+            ))}
+          </div>
+        )}
+        {/* Footer */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ fontFamily:OT, fontSize:10, fontWeight:300,
+            color:'rgba(245,245,247,.28)', letterSpacing:.5 }}>
+            tapcard.io/{u?.handle ?? 'vous'}
+          </div>
+          <QRMark size={qrSz} fill={`${g.ac}55`}/>
         </div>
       </div>
     </div>

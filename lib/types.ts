@@ -12,6 +12,9 @@ export interface GradientState {
   c2:  string
 }
 
+import type { Template, FontChoice } from './templates'
+export type { Template, FontChoice }
+
 export interface Card {
   id?:          string
   handle:       string
@@ -30,4 +33,6 @@ export interface Card {
   country_code?: string
   view_count?:  number
   created_at?:  string
+  template?:    Template
+  font?:        FontChoice
 }

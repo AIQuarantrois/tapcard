@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS cards (
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── Migration #13/#14 — templates et typographie ────────────────────────
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS template TEXT DEFAULT 'gradient';
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS font     TEXT DEFAULT 'serif';
+
 -- ── Migration #15 — champs supplémentaires ──────────────────────────────
 -- À exécuter dans Supabase → SQL Editor si la table existe déjà
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS phone2   TEXT;
