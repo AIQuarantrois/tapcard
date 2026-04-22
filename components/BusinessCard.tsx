@@ -30,7 +30,7 @@ function QRMark({ size, fill }: { size: number; fill: string }) {
       <rect x="13"   y="1"    width="6"   height="6"   rx="1.5"/>
       <rect x="1"    y="13"   width="6"   height="6"   rx="1.5"/>
       <rect x="9"    y="9"    width="3"   height="3"/>
-      <rect x="14"   y="14"  width="2.5" height="2.5"/>
+      <rect x="14"   y="14"   width="2.5" height="2.5"/>
       <rect x="16.5" y="16.5" width="2.5" height="2.5"/>
     </svg>
   )
@@ -70,27 +70,32 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
   const soc     = getFilledSocials(u?.linkedin, u?.socials)
   const av      = u?.av ?? 'TC'
 
-  /* ── Single source of truth for logo ── */
+  /* Single source of truth for logo */
   const logoSrc = (u?.logo_url ?? u?.logo) ?? null
 
   const tmpl     = u?.template === 'solid' ? 'solid' : 'gradient'
   const nameFont = u?.font === 'mono' ? MONO : u?.font === 'serif' ? SERIF : SANS
 
-  /* ── Scale tokens ── */
-  const avSz  = large ? 52 : 40
-  const avR   = large ? 14 : 11
-  const avFs  = large ? 15 : 12
+  /* Scale tokens */
+  const avSz   = large ? 52 : 40
+  const avR    = large ? 14 : 11
+  const avFs   = large ? 15 : 12
   const nameSz = large ? 26 : 19
   const roleSz = large ? 12 : 10
   const metaSz = large ? 10 : 8
-  const qrSz  = large ? 28 : 20
-  /* ── FIX: generous symmetric horizontal padding on both templates ── */
-  const padV  = large ? 22 : 16
-  const padH  = large ? 26 : 20   // was 22/17 — bumped for breathing room
+  const qrSz   = large ? 28 : 20
+  const padV   = large ? 22 : 16
+  const padH   = large ? 26 : 20   /* bumped for visual balance */
+
+  /* ── URL display — explicit, no ambiguous "@" ── */
+  /* Shows "tapcard.io/handle" so the user immediately understands */
+  const urlDisplay = u?.handle
+    ? `tapcard.io/${u.handle}`
+    : 'tapcard.io'
 
   const shell: React.CSSProperties = {
     width: '100%',
-    aspectRatio: '1.585',           // ISO 7810 ID-1 (standard credit card)
+    aspectRatio: '1.585',
     borderRadius: large ? 18 : 14,
     position: 'relative',
     overflow: 'hidden',
@@ -100,22 +105,21 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
       : `0 6px 28px ${g.sh}, 0 2px 10px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.06)`,
   }
 
-  /* ── Shared inner layout ── */
   const inner: React.CSSProperties = {
     position: 'absolute', inset: 0,
     padding: `${padV}px ${padH}px`,
     display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
   }
 
-  /* ══ GRADIENT template ══════════════════════════════════════════ */
+  /* ══ GRADIENT ══════════════════════════════════════════════════ */
   if (tmpl === 'gradient') {
     return (
       <div className={floating ? 'flt' : ''} style={{ ...shell, background: g.css }}>
-        {/* Soft radial highlight — top-right */}
+        {/* Soft radial highlight */}
         <div style={{ position:'absolute', top:-44, right:-44, width:180, height:180, borderRadius:'50%',
           background:'radial-gradient(circle,rgba(255,255,255,.18),transparent 65%)',
           pointerEvents:'none' }}/>
-        {/* Grain overlay for depth */}
+        {/* Grain */}
         <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%',
           opacity:.04, pointerEvents:'none', mixBlendMode:'overlay' as const }}
           xmlns="http://www.w3.org/2000/svg">
@@ -124,14 +128,12 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
         </svg>
 
         <div style={inner}>
-          {/* ── Row 1: handle + avatar ── */}
+          {/* Row 1: URL label + avatar/logo */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-            {/* Left: @handle — always text, never logo here */}
-            <div style={{ fontSize:metaSz, fontFamily:MONO, color:'rgba(255,255,255,.40)',
-              letterSpacing:.8, lineHeight:1 }}>
-              @{u?.handle ?? 'tapcard'}
+            <div style={{ fontSize:metaSz, fontFamily:MONO, color:'rgba(255,255,255,.38)',
+              letterSpacing:.6, lineHeight:1 }}>
+              {urlDisplay}
             </div>
-            {/* Right: logo OR initials — never both */}
             <div style={{ width:avSz, height:avSz, borderRadius:avR, flexShrink:0,
               background:'rgba(255,255,255,.18)', backdropFilter:'blur(10px)',
               overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
@@ -144,7 +146,7 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
             </div>
           </div>
 
-          {/* ── Row 2: Name + role ── */}
+          {/* Row 2: Name + role */}
           <div>
             <div style={{ fontFamily:nameFont, fontSize:nameSz, fontWeight:700, color:'#fff',
               lineHeight:1.08, letterSpacing:-.3,
@@ -158,7 +160,7 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
             </div>
           </div>
 
-          {/* ── Row 3: socials + QR ── */}
+          {/* Row 3: socials + QR */}
           <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between' }}>
             <div>
               {soc.length > 0 ? (
@@ -175,9 +177,9 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
                   ))}
                 </div>
               ) : (
-                <div style={{ fontSize:metaSz, fontFamily:MONO,
-                  color:'rgba(255,255,255,.30)', letterSpacing:.5 }}>
-                  tapcard.io/{u?.handle ?? 'vous'}
+                <div style={{ fontSize:metaSz+1, fontFamily:MONO,
+                  color:'rgba(255,255,255,.28)', letterSpacing:.4 }}>
+                  one tap. real connection.
                 </div>
               )}
             </div>
@@ -188,7 +190,7 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
     )
   }
 
-  /* ══ SOLID template ═════════════════════════════════════════════ */
+  /* ══ SOLID ══════════════════════════════════════════════════════ */
   const bg       = g.c1
   const isDark   = lum(bg) <= 0.22
   const txtMain  = autoText(bg)
@@ -200,28 +202,25 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
   const socIcon  = isDark ? 'rgba(255,255,255,.76)' : 'rgba(17,19,24,.60)'
   const qrFill   = isDark ? 'rgba(255,255,255,.26)' : 'rgba(17,19,24,.22)'
 
-  /* Solid inner has extra left padding to clear the accent bar */
   const solidInner: React.CSSProperties = {
     ...inner,
-    paddingLeft: padH + 10,  /* compensate for 3px accent bar + visual margin */
+    paddingLeft: padH + 10,
   }
 
   return (
     <div className={floating ? 'flt' : ''}
       style={{ ...shell, background: bg,
         border: isDark ? 'none' : '1px solid rgba(0,0,0,.07)' }}>
-      {/* Gradient sheen */}
       <div style={{ position:'absolute', inset:0,
         background:`linear-gradient(150deg,${g.ac}18 0%,transparent 52%)`, pointerEvents:'none' }}/>
-      {/* Left accent bar */}
       <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3,
         background:`linear-gradient(to bottom,${g.ac},${g.c2})` }}/>
 
       <div style={solidInner}>
-        {/* Row 1: handle + avatar */}
+        {/* Row 1 */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-          <div style={{ fontSize:metaSz, fontFamily:MONO, color:txtMut, letterSpacing:.8, lineHeight:1 }}>
-            @{u?.handle ?? 'tapcard'}
+          <div style={{ fontSize:metaSz, fontFamily:MONO, color:txtMut, letterSpacing:.6, lineHeight:1 }}>
+            {urlDisplay}
           </div>
           <div style={{ width:avSz, height:avSz, borderRadius:avR, flexShrink:0,
             background:avBg, overflow:'hidden',
@@ -234,7 +233,7 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
           </div>
         </div>
 
-        {/* Row 2: Name + role */}
+        {/* Row 2 */}
         <div>
           <div style={{ fontFamily:nameFont, fontSize:nameSz, fontWeight:700, color:txtMain,
             lineHeight:1.08, letterSpacing:-.3,
@@ -247,7 +246,7 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
           </div>
         </div>
 
-        {/* Row 3: socials + QR */}
+        {/* Row 3 */}
         <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between' }}>
           <div>
             {soc.length > 0 ? (
@@ -263,8 +262,8 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
                 ))}
               </div>
             ) : (
-              <div style={{ fontSize:metaSz, fontFamily:MONO, color:txtMut, letterSpacing:.5 }}>
-                tapcard.io/{u?.handle ?? 'vous'}
+              <div style={{ fontSize:metaSz+1, fontFamily:MONO, color:txtMut, letterSpacing:.4 }}>
+                one tap. real connection.
               </div>
             )}
           </div>
