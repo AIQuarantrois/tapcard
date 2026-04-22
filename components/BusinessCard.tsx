@@ -30,13 +30,13 @@ function QRMark({ size, fill }: { size: number; fill: string }) {
       <rect x="13"   y="1"    width="6"   height="6"   rx="1.5"/>
       <rect x="1"    y="13"   width="6"   height="6"   rx="1.5"/>
       <rect x="9"    y="9"    width="3"   height="3"/>
-      <rect x="14"   y="14"   width="2.5" height="2.5"/>
+      <rect x="14"   y="14"  width="2.5" height="2.5"/>
       <rect x="16.5" y="16.5" width="2.5" height="2.5"/>
     </svg>
   )
 }
 
-/* ─── Card User shape ─── */
+/* ─── CardUser ─── */
 export interface CardUser {
   name?:     string
   role?:     string
@@ -70,99 +70,99 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
   const soc     = getFilledSocials(u?.linkedin, u?.socials)
   const av      = u?.av ?? 'TC'
 
-  // ── P0 FIX : une seule source de vérité pour le logo ──────────────────
-  // logo_url = upload stocké en base (prod)
-  // logo     = data URL temporaire (preview onboarding)
-  // On prend le premier disponible, jamais les deux à la fois.
+  /* ── Single source of truth for logo ── */
   const logoSrc = (u?.logo_url ?? u?.logo) ?? null
 
-  const tmpl    = u?.template === 'solid' ? 'solid' : 'gradient'
+  const tmpl     = u?.template === 'solid' ? 'solid' : 'gradient'
   const nameFont = u?.font === 'mono' ? MONO : u?.font === 'serif' ? SERIF : SANS
 
-  /* Scale */
-  const avSz   = large ? 48 : 36
-  const avR    = large ? 10 : 7
-  const nameSz = large ? 26 : 20
+  /* ── Scale tokens ── */
+  const avSz  = large ? 52 : 40
+  const avR   = large ? 14 : 11
+  const avFs  = large ? 15 : 12
+  const nameSz = large ? 26 : 19
   const roleSz = large ? 12 : 10
   const metaSz = large ? 10 : 8
-  const qrSz   = large ? 30 : 22
-  const padV   = large ? 20 : 15
-  const padH   = large ? 22 : 17
+  const qrSz  = large ? 28 : 20
+  /* ── FIX: generous symmetric horizontal padding on both templates ── */
+  const padV  = large ? 22 : 16
+  const padH  = large ? 26 : 20   // was 22/17 — bumped for breathing room
 
   const shell: React.CSSProperties = {
     width: '100%',
-    aspectRatio: '1.585',
-    borderRadius: 8,
+    aspectRatio: '1.585',           // ISO 7810 ID-1 (standard credit card)
+    borderRadius: large ? 18 : 14,
     position: 'relative',
     overflow: 'hidden',
     boxSizing: 'border-box',
     boxShadow: floating
-      ? `0 28px 72px ${g.sh}, 0 8px 28px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.10)`
-      : `0 6px 28px ${g.sh}, 0 2px 10px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.06)`,
+      ? `0 28px 72px ${g.sh}, 0 8px 28px rgba(0,0,0,.44), inset 0 1px 0 rgba(255,255,255,.10)`
+      : `0 6px 28px ${g.sh}, 0 2px 10px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.06)`,
   }
 
+  /* ── Shared inner layout ── */
   const inner: React.CSSProperties = {
     position: 'absolute', inset: 0,
     padding: `${padV}px ${padH}px`,
     display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
   }
 
-  /* ── GRADIENT ─────────────────────────────────────────────────────── */
+  /* ══ GRADIENT template ══════════════════════════════════════════ */
   if (tmpl === 'gradient') {
     return (
       <div className={floating ? 'flt' : ''} style={{ ...shell, background: g.css }}>
-        {/* Radial highlight */}
-        <div style={{ position:'absolute', top:-52, right:-36, width:170, height:170, borderRadius:'50%',
-          background:'radial-gradient(circle,rgba(255,255,255,.22),transparent 68%)', pointerEvents:'none' }}/>
-        {/* Grain */}
-        <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', opacity:.045, pointerEvents:'none', mixBlendMode:'overlay' as const }} xmlns="http://www.w3.org/2000/svg">
-          <filter id="tcnoise"><feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/></filter>
-          <rect width="100%" height="100%" filter="url(#tcnoise)"/>
+        {/* Soft radial highlight — top-right */}
+        <div style={{ position:'absolute', top:-44, right:-44, width:180, height:180, borderRadius:'50%',
+          background:'radial-gradient(circle,rgba(255,255,255,.18),transparent 65%)',
+          pointerEvents:'none' }}/>
+        {/* Grain overlay for depth */}
+        <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%',
+          opacity:.04, pointerEvents:'none', mixBlendMode:'overlay' as const }}
+          xmlns="http://www.w3.org/2000/svg">
+          <filter id="tcn"><feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/></filter>
+          <rect width="100%" height="100%" filter="url(#tcn)"/>
         </svg>
 
         <div style={inner}>
-          {/* ── Top : @handle (toujours) + avatar/logo (une seule occurrence) ── */}
+          {/* ── Row 1: handle + avatar ── */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-
-            {/* Gauche : toujours @handle — jamais le logo ici */}
-            <div style={{ fontSize:metaSz, fontFamily:MONO, color:'rgba(255,255,255,.40)', letterSpacing:.7, lineHeight:1 }}>
+            {/* Left: @handle — always text, never logo here */}
+            <div style={{ fontSize:metaSz, fontFamily:MONO, color:'rgba(255,255,255,.40)',
+              letterSpacing:.8, lineHeight:1 }}>
               @{u?.handle ?? 'tapcard'}
             </div>
-
-            {/* Droite : avatar OU logo — jamais les deux */}
-            <div style={{
-              width:avSz, height:avSz, borderRadius:avR, flexShrink:0,
+            {/* Right: logo OR initials — never both */}
+            <div style={{ width:avSz, height:avSz, borderRadius:avR, flexShrink:0,
               background:'rgba(255,255,255,.18)', backdropFilter:'blur(10px)',
               overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:large?14:11, fontWeight:700, color:'rgba(255,255,255,.90)', fontFamily:SANS,
-              boxShadow:'inset 0 0 0 1px rgba(255,255,255,.26), 0 4px 14px rgba(0,0,0,.22)',
-              letterSpacing:-.5,
-            }}>
+              fontSize:avFs, fontWeight:700, color:'rgba(255,255,255,.90)', fontFamily:SANS,
+              boxShadow:'inset 0 0 0 1px rgba(255,255,255,.26), 0 4px 14px rgba(0,0,0,.2)',
+              letterSpacing:-.5 }}>
               {logoSrc
-                ? <img src={logoSrc} alt="logo" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
-                : av  /* initiales si pas de logo */
-              }
+                ? <img src={logoSrc} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+                : av}
             </div>
           </div>
 
-          {/* ── Middle : identité ── */}
+          {/* ── Row 2: Name + role ── */}
           <div>
             <div style={{ fontFamily:nameFont, fontSize:nameSz, fontWeight:700, color:'#fff',
-              lineHeight:1.08, letterSpacing:-.4,
+              lineHeight:1.08, letterSpacing:-.3,
               overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
               {u?.name ?? 'Votre Nom'}
             </div>
-            <div style={{ marginTop:4, fontSize:roleSz, color:'rgba(255,255,255,.64)', fontFamily:SANS, fontWeight:400, letterSpacing:.1,
+            <div style={{ marginTop:4, fontSize:roleSz, color:'rgba(255,255,255,.62)',
+              fontFamily:SANS, fontWeight:400, letterSpacing:.1,
               overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
               {[u?.role, u?.company].filter(Boolean).join(' · ') || (large ? '' : 'Poste · Entreprise')}
             </div>
           </div>
 
-          {/* ── Bottom : réseaux + QR ── */}
+          {/* ── Row 3: socials + QR ── */}
           <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between' }}>
             <div>
               {soc.length > 0 ? (
-                <div style={{ display:'flex', gap:large?6:4 }}>
+                <div style={{ display:'flex', gap: large ? 6 : 4 }}>
                   {soc.slice(0, large ? 6 : 4).map(s => (
                     <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer"
                       style={{ width:large?22:16, height:large?22:16, borderRadius:'50%',
@@ -175,33 +175,40 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
                   ))}
                 </div>
               ) : (
-                <div style={{ fontSize:metaSz, fontFamily:MONO, color:'rgba(255,255,255,.30)', letterSpacing:.4 }}>
+                <div style={{ fontSize:metaSz, fontFamily:MONO,
+                  color:'rgba(255,255,255,.30)', letterSpacing:.5 }}>
                   tapcard.io/{u?.handle ?? 'vous'}
                 </div>
               )}
             </div>
-            <QRMark size={qrSz} fill="rgba(255,255,255,.34)"/>
+            <QRMark size={qrSz} fill="rgba(255,255,255,.32)"/>
           </div>
         </div>
       </div>
     )
   }
 
-  /* ── SOLID ────────────────────────────────────────────────────────── */
-  const bg      = g.c1
-  const isDark  = lum(bg) <= 0.22
-  const txtMain = autoText(bg)
-  const txtSub  = isDark ? 'rgba(240,242,245,.60)' : 'rgba(17,19,24,.54)'
-  const txtMut  = isDark ? 'rgba(240,242,245,.30)' : 'rgba(17,19,24,.28)'
-  const avBg    = isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.08)'
-  const avBorder= isDark ? 'rgba(255,255,255,.20)' : 'rgba(0,0,0,.12)'
-  const socBg   = isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.07)'
-  const socIcon = isDark ? 'rgba(255,255,255,.78)' : 'rgba(17,19,24,.62)'
-  const qrFill  = isDark ? 'rgba(255,255,255,.28)' : 'rgba(17,19,24,.24)'
+  /* ══ SOLID template ═════════════════════════════════════════════ */
+  const bg       = g.c1
+  const isDark   = lum(bg) <= 0.22
+  const txtMain  = autoText(bg)
+  const txtSub   = isDark ? 'rgba(240,242,245,.58)' : 'rgba(17,19,24,.52)'
+  const txtMut   = isDark ? 'rgba(240,242,245,.28)' : 'rgba(17,19,24,.26)'
+  const avBg     = isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.08)'
+  const avBorder = isDark ? 'rgba(255,255,255,.20)' : 'rgba(0,0,0,.12)'
+  const socBg    = isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.07)'
+  const socIcon  = isDark ? 'rgba(255,255,255,.76)' : 'rgba(17,19,24,.60)'
+  const qrFill   = isDark ? 'rgba(255,255,255,.26)' : 'rgba(17,19,24,.22)'
+
+  /* Solid inner has extra left padding to clear the accent bar */
+  const solidInner: React.CSSProperties = {
+    ...inner,
+    paddingLeft: padH + 10,  /* compensate for 3px accent bar + visual margin */
+  }
 
   return (
     <div className={floating ? 'flt' : ''}
-      style={{ ...shell, background: bg, boxShadow: shell.boxShadow,
+      style={{ ...shell, background: bg,
         border: isDark ? 'none' : '1px solid rgba(0,0,0,.07)' }}>
       {/* Gradient sheen */}
       <div style={{ position:'absolute', inset:0,
@@ -210,32 +217,27 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
       <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3,
         background:`linear-gradient(to bottom,${g.ac},${g.c2})` }}/>
 
-      <div style={{ ...inner, paddingLeft: padH + 8 }}>
-        {/* ── Top : @handle (toujours) + avatar/logo (une seule occurrence) ── */}
+      <div style={solidInner}>
+        {/* Row 1: handle + avatar */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-
-          {/* Gauche : toujours @handle */}
-          <div style={{ fontSize:metaSz, fontFamily:MONO, color:txtMut, letterSpacing:.7, lineHeight:1 }}>
+          <div style={{ fontSize:metaSz, fontFamily:MONO, color:txtMut, letterSpacing:.8, lineHeight:1 }}>
             @{u?.handle ?? 'tapcard'}
           </div>
-
-          {/* Droite : avatar OU logo */}
           <div style={{ width:avSz, height:avSz, borderRadius:avR, flexShrink:0,
             background:avBg, overflow:'hidden',
             display:'flex', alignItems:'center', justifyContent:'center',
-            fontSize:large?14:11, fontWeight:700, color:txtSub, fontFamily:SANS,
+            fontSize:avFs, fontWeight:700, color:txtSub, fontFamily:SANS,
             boxShadow:`inset 0 0 0 1px ${avBorder}`, letterSpacing:-.5 }}>
             {logoSrc
-              ? <img src={logoSrc} alt="logo" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
-              : av
-            }
+              ? <img src={logoSrc} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+              : av}
           </div>
         </div>
 
-        {/* ── Middle ── */}
+        {/* Row 2: Name + role */}
         <div>
           <div style={{ fontFamily:nameFont, fontSize:nameSz, fontWeight:700, color:txtMain,
-            lineHeight:1.08, letterSpacing:-.4,
+            lineHeight:1.08, letterSpacing:-.3,
             overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
             {u?.name ?? 'Votre Nom'}
           </div>
@@ -245,11 +247,11 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
           </div>
         </div>
 
-        {/* ── Bottom ── */}
+        {/* Row 3: socials + QR */}
         <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between' }}>
           <div>
             {soc.length > 0 ? (
-              <div style={{ display:'flex', gap:large?6:4 }}>
+              <div style={{ display:'flex', gap: large ? 6 : 4 }}>
                 {soc.slice(0, large ? 6 : 4).map(s => (
                   <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer"
                     style={{ width:large?22:16, height:large?22:16, borderRadius:'50%',
@@ -261,7 +263,7 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
                 ))}
               </div>
             ) : (
-              <div style={{ fontSize:metaSz, fontFamily:MONO, color:txtMut, letterSpacing:.4 }}>
+              <div style={{ fontSize:metaSz, fontFamily:MONO, color:txtMut, letterSpacing:.5 }}>
                 tapcard.io/{u?.handle ?? 'vous'}
               </div>
             )}

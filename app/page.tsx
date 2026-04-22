@@ -59,11 +59,12 @@ function formatRelative(dateStr: string): string {
 }
 
 /* ══════════════════════════════════════════════════════════ SHARED UI */
+
 function Section({ label, footer, children, theme }: {
   label?: string; footer?: string; children: React.ReactNode; theme: Theme
 }) {
   return (
-    <div style={{ marginBottom: 28 }}>
+    <div style={{ marginBottom:28 }}>
       {label && (
         <div style={{ fontFamily:OT, fontSize:12, fontWeight:500, color:theme.t3,
           letterSpacing:.5, textTransform:'uppercase', marginBottom:8, paddingLeft:4 }}>
@@ -104,9 +105,7 @@ function TextRow({ value, onChange, type='text', placeholder, last=false, prefix
   return (
     <Row last={last} theme={theme}>
       <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:10 }}>
-        {prefix && (
-          <div style={{ color:theme.t3, flexShrink:0, display:'flex', alignItems:'center' }}>{prefix}</div>
-        )}
+        {prefix && <div style={{ color:theme.t3, flexShrink:0, display:'flex', alignItems:'center' }}>{prefix}</div>}
         <input type={type} value={value}
           onChange={e => onChange(maxLength ? e.target.value.slice(0, maxLength) : e.target.value)}
           placeholder={placeholder} autoComplete={autoComplete}
@@ -124,8 +123,40 @@ function TextRow({ value, onChange, type='text', placeholder, last=false, prefix
   )
 }
 
+/* ─── Skeleton loader ─── */
+function Skeleton({ w='100%', h=20, r=6 }: { w?: string|number; h?: number; r?: number }) {
+  return (
+    <div style={{ width:w, height:h, borderRadius:r,
+      background:'rgba(255,255,255,0.07)', flexShrink:0,
+      animation:'skPulse 1.4s ease-in-out infinite',
+    }}/>
+  )
+}
+
+/* ─── Logo mark component ─── */
+/* Replace the SVG below with an <img src="/logo.svg"> once you have the asset */
+function LogoMark({ size=32, grad }: { size?: number; grad: GradientState }) {
+  return (
+    <div style={{ width:size, height:size, borderRadius:Math.round(size*0.3), background:grad.css,
+      display:'flex', alignItems:'center', justifyContent:'center',
+      boxShadow:`0 4px 16px ${grad.sh}` }}>
+      <svg width={size*0.55} height={size*0.55} viewBox="0 0 48 48" fill="none">
+        <rect x="6" y="11" width="36" height="22" rx="4.5" fill="white" fillOpacity=".96"/>
+        <rect x="12" y="17" width="14" height="2.6" rx="1.3" fill="rgba(90,20,180,.6)"/>
+        <rect x="12" y="22" width="20" height="1.6" rx=".8"  fill="rgba(90,20,180,.28)"/>
+        <rect x="12" y="26" width="15" height="1.6" rx=".8"  fill="rgba(90,20,180,.17)"/>
+        <circle cx="37" cy="17.5" r="6.5" fill="url(#sg)"/>
+        <defs><linearGradient id="sg" x1="30" y1="11" x2="44" y2="24">
+          <stop stopColor="#F97316"/><stop offset="1" stopColor="#DB2777"/>
+        </linearGradient></defs>
+      </svg>
+    </div>
+  )
+}
+
 /* ══════════════════════════════════════════════════════════ ROOT */
 export default function TapCardApp() {
+  /* ── State ── */
   const [dark,          setDark]          = useState(true)
   const [isDesktop,     setIsDesktop]     = useState(false)
   const [screen,        setScreen]        = useState<Screen>('splash')
@@ -179,17 +210,25 @@ export default function TapCardApp() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  /* ── Auto-detect country from locale ── */
+  /* ── Inject skeleton keyframe ── */
+  useEffect(() => {
+    const el = document.createElement('style')
+    el.textContent = `@keyframes skPulse { 0%,100%{opacity:.5} 50%{opacity:1} }`
+    document.head.appendChild(el)
+    return () => { try { document.head.removeChild(el) } catch {} }
+  }, [])
+
+  /* ── Auto-detect country ── */
   useEffect(() => {
     try {
       const region = (navigator.language || '').split('-')[1]?.toUpperCase()
       if (!region) return
       const match = COUNTRIES.find(c => c.code === region)
       if (match) setCountry(match)
-    } catch { /* ignore */ }
+    } catch {}
   }, [])
 
-  /* ── Restore session from localStorage ── */
+  /* ── Restore session ── */
   useEffect(() => {
     const handle = localStorage.getItem('tc_handle')
     if (!handle) return
@@ -203,16 +242,13 @@ export default function TapCardApp() {
         setGrad(g)
         setTemplate(data.template === 'solid' ? 'solid' : 'gradient')
         setFont(data.font === 'mono' ? 'mono' : data.font === 'serif' ? 'serif' : 'sans')
-        setUser({
-          name:data.name||'', role:data.role, company:data.company,
+        setUser({ name:data.name||'', role:data.role, company:data.company,
           email:data.email, phone:data.phone, phone2:data.phone2,
           website:data.website, address:data.address, linkedin:data.linkedin,
-          handle:data.handle, socials:data.socials||{}, av,
-          logo:data.logo_url, gradient:g,
-          country:COUNTRIES.find(c => c.code === data.country_code) ?? COUNTRIES[1],
+          handle:data.handle, socials:data.socials||{}, av, logo:data.logo_url,
+          gradient:g, country:COUNTRIES.find(c => c.code === data.country_code) ?? COUNTRIES[1],
           view_count:data.view_count ?? 0,
-          template:data.template ?? 'gradient', font:data.font ?? 'serif',
-        })
+          template:data.template ?? 'gradient', font:data.font ?? 'serif' })
         setScreen('mycard')
       })
       .catch(() => localStorage.removeItem('tc_handle'))
@@ -230,7 +266,7 @@ export default function TapCardApp() {
     return () => subscription.unsubscribe()
   }, [])
 
-  /* ── Multi-device restoration ── */
+  /* ── Multi-device restore ── */
   useEffect(() => {
     if (!authUser || user) return
     supabaseBrowser.auth.getSession().then(({ data: { session } }) => {
@@ -242,26 +278,21 @@ export default function TapCardApp() {
           const p  = (data.name || '').trim().split(/\s+/)
           const av = ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase() || 'TC'
           const g  = data.gradient ? makeGrad(data.gradient.c1, data.gradient.c2, data.gradient.ac) : grad
-          setGrad(g)
-          setTemplate(data.template === 'solid' ? 'solid' : 'gradient')
+          setGrad(g); setTemplate(data.template === 'solid' ? 'solid' : 'gradient')
           setFont(data.font === 'mono' ? 'mono' : data.font === 'serif' ? 'serif' : 'sans')
-          setUser({
-            name:data.name||'', role:data.role, company:data.company,
+          setUser({ name:data.name||'', role:data.role, company:data.company,
             email:data.email, phone:data.phone, phone2:data.phone2,
             website:data.website, address:data.address, linkedin:data.linkedin,
             handle:data.handle, socials:data.socials||{}, av, logo:data.logo_url,
             gradient:g, country:COUNTRIES.find(c => c.code === data.country_code) ?? COUNTRIES[1],
-            view_count:data.view_count??0,
-            template:data.template??'gradient', font:data.font??'serif',
-          })
+            view_count:data.view_count??0, template:data.template??'gradient', font:data.font??'serif' })
           localStorage.setItem('tc_handle', data.handle)
           setScreen('mycard')
-        })
-        .catch(() => {})
+        }).catch(() => {})
     })
   }, [authUser, user])
 
-  /* ── Auto-claim card on sign-in ── */
+  /* ── Auto-claim on sign in ── */
   useEffect(() => {
     if (!authUser || !user) return
     supabaseBrowser.auth.getSession().then(({ data: { session } }) => {
@@ -274,7 +305,7 @@ export default function TapCardApp() {
     })
   }, [authUser?.id, user?.handle])
 
-  /* ── Splash → landing (800ms, fast) ── */
+  /* ── Splash (800ms loader only) ── */
   useEffect(() => {
     if (screen !== 'splash') return
     const t = setTimeout(() => setScreen('landing'), 800)
@@ -286,15 +317,11 @@ export default function TapCardApp() {
     if (!user || connectionCount !== null) return
     fetch(`/api/connections?handle=${user.handle}`)
       .then(r => r.ok ? r.json() : [])
-      .then((data: Contact[]) => {
-        setConnectionCount(data.length)
-        setContacts(data)
-        setContactsLoaded(true)
-      })
+      .then((data: Contact[]) => { setConnectionCount(data.length); setContacts(data); setContactsLoaded(true) })
       .catch(() => setConnectionCount(0))
   }, [user, connectionCount])
 
-  /* ── Load contacts tab ── */
+  /* ── Contacts tab lazy load ── */
   useEffect(() => {
     if (nav !== 'contacts' || !user || contactsLoaded) return
     fetch(`/api/connections?handle=${user.handle}`)
@@ -327,8 +354,7 @@ export default function TapCardApp() {
       const av = ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase() || 'TC'
       const handleBase = form.handle.trim() || (p[0] ?? 'card').toLowerCase().replace(/[^a-z0-9-]/g, '')
       const res = await fetch('/api/cards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({
           handle:handleBase, name:form.name.trim(), role:form.role, company:form.company,
           email:form.email, phone:form.phone ? `${country.dial} ${form.phone}` : '',
@@ -340,13 +366,11 @@ export default function TapCardApp() {
       })
       const data = await res.json()
       if (res.ok) {
-        setUser({
-          name:form.name.trim(), role:form.role, company:form.company,
+        setUser({ name:form.name.trim(), role:form.role, company:form.company,
           email:form.email, phone:form.phone ? `${country.dial} ${form.phone}` : '',
           phone2:form.phone2, website:form.website, address:form.address,
           linkedin:form.linkedin, handle:data.handle, socials, av,
-          logo:logoUrl, gradient:grad, country, view_count:data.view_count ?? 0, template, font,
-        })
+          logo:logoUrl, gradient:grad, country, view_count:data.view_count ?? 0, template, font })
         localStorage.setItem('tc_handle', data.handle)
         localStorage.setItem(`tc_token_${data.handle}`, data.id)
         setConnectionCount(0)
@@ -360,18 +384,17 @@ export default function TapCardApp() {
     if (!form.name.trim() || creating || !user) return
     setCreating(true)
     try {
-      const p   = form.name.trim().split(/\s+/)
-      const av  = ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase() || 'TC'
+      const p  = form.name.trim().split(/\s+/)
+      const av = ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase() || 'TC'
       const session = (await supabaseBrowser.auth.getSession()).data.session
-      const headers: Record<string,string> = { 'Content-Type': 'application/json' }
+      const headers: Record<string,string> = { 'Content-Type':'application/json' }
       if (session) headers['Authorization'] = `Bearer ${session.access_token}`
       const newHandle     = form.handle.trim() || user.handle
       const handleChanged = newHandle !== user.handle && handleStatus === 'ok'
       const res = await fetch('/api/cards', {
-        method: 'PATCH', headers,
+        method:'PATCH', headers,
         body: JSON.stringify({
-          handle:user.handle,
-          edit_token:localStorage.getItem(`tc_token_${user.handle}`) ?? '',
+          handle:user.handle, edit_token:localStorage.getItem(`tc_token_${user.handle}`) ?? '',
           ...(handleChanged ? { new_handle: newHandle } : {}),
           name:form.name.trim(), role:form.role, company:form.company,
           email:form.email, phone:form.phone ? `${country.dial} ${form.phone}` : '',
@@ -389,16 +412,12 @@ export default function TapCardApp() {
           localStorage.setItem('tc_handle', finalHandle)
           localStorage.setItem(`tc_token_${finalHandle}`, token)
         }
-        setUser({
-          name:form.name.trim(), role:form.role, company:form.company,
+        setUser({ name:form.name.trim(), role:form.role, company:form.company,
           email:form.email, phone:form.phone ? `${country.dial} ${form.phone}` : '',
           phone2:form.phone2, website:form.website, address:form.address,
           linkedin:form.linkedin, handle:finalHandle, socials, av,
-          logo:logoUrl, gradient:grad, country, view_count:user.view_count, template, font,
-        })
-        setIsEditing(false)
-        setOnboardStep(1)
-        setScreen('mycard')
+          logo:logoUrl, gradient:grad, country, view_count:user.view_count, template, font })
+        setIsEditing(false); setOnboardStep(1); setScreen('mycard')
       } else {
         const err = await res.json().catch(() => ({}))
         setUpdateError(err.error ?? 'Modification non autorisée.')
@@ -410,24 +429,20 @@ export default function TapCardApp() {
     if (!user) return
     const phoneNum = user.phone && user.country
       ? user.phone.replace(user.country.dial + ' ', '') : user.phone || ''
-    setForm({
-      name:user.name, role:user.role||'', company:user.company||'',
+    setForm({ name:user.name, role:user.role||'', company:user.company||'',
       email:user.email||'', phone:phoneNum, phone2:user.phone2||'',
-      website:user.website||'', address:user.address||'',
-      handle:user.handle, linkedin:user.linkedin||'',
-    })
+      website:user.website||'', address:user.address||'', handle:user.handle, linkedin:user.linkedin||'' })
     setSocials(user.socials || {})
     if (user.country)  setCountry(user.country)
     if (user.gradient) setGrad(user.gradient)
     setTemplate(user.template === 'solid' ? 'solid' : 'gradient')
     setFont(user.font === 'mono' ? 'mono' : user.font === 'serif' ? 'serif' : 'sans')
     setLogoUrl(user.logo || null)
-    setUpdateError('')
-    setIsEditing(true)
-    setScreen('onboarding')
+    setUpdateError(''); setIsEditing(true); setScreen('onboarding')
   }
 
-  const doCopy       = () => { setCopied(true); setTimeout(() => setCopied(false), 2200) }
+  const doCopy = () => { setCopied(true); setTimeout(() => setCopied(false), 2200) }
+
   const doSendMagicLink = async () => {
     if (!authEmail.trim() || authSending) return
     setAuthSending(true)
@@ -444,22 +459,18 @@ export default function TapCardApp() {
     await supabaseBrowser.auth.signOut()
     setAuthUser(null); setUser(null)
     localStorage.removeItem('tc_handle')
-    setOnboardStep(1)
-    setScreen('landing')
+    setOnboardStep(1); setScreen('landing')
   }
 
   const doNativeShare = async (handle: string, name: string) => {
     const url = `${window.location.origin}/${handle}`
-    if (navigator.share) {
-      try { await navigator.share({ title: name, text: 'Ma carte TapCard', url }); return } catch {}
-    }
+    if (navigator.share) { try { await navigator.share({ title:name, text:'Ma carte TapCard', url }); return } catch {} }
     setShare(true)
   }
 
-  const setSoc      = (id: string, v: string) => setSocials(p => ({ ...p, [id]:v }))
-  const handleLogo  = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]
-    if (!f) return
+  const setSoc = (id: string, v: string) => setSocials(p => ({ ...p, [id]:v }))
+  const handleLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f) return
     const r = new FileReader()
     r.onload = ev => setLogoUrl(ev.target?.result as string)
     r.readAsDataURL(f)
@@ -480,7 +491,6 @@ export default function TapCardApp() {
     )
   }
 
-  /* ── Decorative background orbs ── */
   function Orbs() {
     return (
       <>
@@ -494,31 +504,15 @@ export default function TapCardApp() {
     )
   }
 
-  /* ── Desktop right panel ── */
-  function DesktopPanel({ children }: { children: React.ReactNode }) {
-    if (!isDesktop) return null
-    return (
-      <div style={{
-        position:'fixed', top:0, right:0, bottom:0, left:480,
-        display:'flex', alignItems:'center', justifyContent:'center',
-        background:T.bg, borderLeft:`1px solid ${T.sep}`, zIndex:1,
-        padding:'40px',
-      }}>
-        {children}
-      </div>
-    )
-  }
-
-  /* ── Color picker ── */
   function ColorPicker() {
     return (
       <div style={{ background:T.s1, borderRadius:14, overflow:'hidden', border:`1px solid ${T.sep}`, marginBottom:28 }}>
         <div style={{ padding:'12px 16px 10px', borderBottom:`1px solid ${T.sep}` }}>
-          <div style={{ fontFamily:OT, fontSize:12, fontWeight:500, color:T.t3,
-            letterSpacing:.5, textTransform:'uppercase' }}>Couleur de carte</div>
+          <div style={{ fontFamily:OT, fontSize:12, fontWeight:500, color:T.t3, letterSpacing:.5, textTransform:'uppercase' }}>
+            Couleur de carte
+          </div>
         </div>
-        <div style={{ display:'flex', gap:10, padding:'14px 16px',
-          borderBottom: showCustom ? `1px solid ${T.sep}` : 'none' }}>
+        <div style={{ display:'flex', gap:10, padding:'14px 16px', borderBottom: showCustom ? `1px solid ${T.sep}` : 'none' }}>
           {GR_PRESETS.map(p => {
             const g = makeGrad(p.c1, p.c2, p.ac)
             const active = grad.c1 === p.c1 && grad.c2 === p.c2
@@ -551,33 +545,29 @@ export default function TapCardApp() {
           <div className="exp" style={{ padding:'14px 16px 16px' }}>
             <div style={{ fontSize:11, fontFamily:OT, color:T.t3, marginBottom:10 }}>Dégradé personnalisé</div>
             <div style={{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:12 }}>
-              {[['Couleur 1', customC1, setCustomC1], ['Couleur 2', customC2, setCustomC2]].map(([label, val, setter], idx) => (
+              {([['Couleur 1', customC1, setCustomC1], ['Couleur 2', customC2, setCustomC2]] as const).map(([label, val, setter], idx) => (
                 <div key={idx} style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:11, color:T.t3, fontFamily:OT, marginBottom:5 }}>{label as string}</div>
+                  <div style={{ fontSize:11, color:T.t3, fontFamily:OT, marginBottom:5 }}>{label}</div>
                   <div style={{ display:'flex', alignItems:'center', gap:6, background:T.s2,
                     borderRadius:9, padding:'8px 10px', border:`1px solid ${T.sep}`, minWidth:0 }}>
                     <div style={{ position:'relative', width:22, height:22, borderRadius:6,
-                      background:val as string, overflow:'hidden', flexShrink:0 }}>
-                      <input type="color" value={val as string}
-                        onChange={e => (setter as (v:string)=>void)(e.target.value)}
+                      background:val, overflow:'hidden', flexShrink:0 }}>
+                      <input type="color" value={val} onChange={e => setter(e.target.value)}
                         style={{ position:'absolute', opacity:0, inset:0, width:'100%', height:'100%', cursor:'pointer' }}/>
                     </div>
-                    <input type="text" value={val as string}
-                      onChange={e => /^#[0-9A-Fa-f]{0,6}$/.test(e.target.value) && (setter as (v:string)=>void)(e.target.value)}
-                      style={{ flex:1, minWidth:0, background:'transparent', border:'none', outline:'none', color:T.t1,
-                        fontSize:12, fontFamily:"'Courier New',monospace", fontWeight:500 }}/>
+                    <input type="text" value={val}
+                      onChange={e => /^#[0-9A-Fa-f]{0,6}$/.test(e.target.value) && setter(e.target.value)}
+                      style={{ flex:1, minWidth:0, background:'transparent', border:'none', outline:'none',
+                        color:T.t1, fontSize:12, fontFamily:"'Courier New',monospace", fontWeight:500 }}/>
                   </div>
                 </div>
               ))}
             </div>
             <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-              <div style={{ flex:1, height:36, borderRadius:9,
-                background:`linear-gradient(135deg,${customC1},${customC2})` }}/>
+              <div style={{ flex:1, height:36, borderRadius:9, background:`linear-gradient(135deg,${customC1},${customC2})` }}/>
               <button onClick={applyCustom} className="press" style={{
                 background:T.blue, borderRadius:9, padding:'9px 16px',
-                color:'#fff', fontSize:13, fontFamily:OT, fontWeight:600 }}>
-                Appliquer
-              </button>
+                color:'#fff', fontSize:13, fontFamily:OT, fontWeight:600 }}>Appliquer</button>
             </div>
           </div>
         )}
@@ -586,10 +576,9 @@ export default function TapCardApp() {
   }
 
   function TemplatePicker() {
-    const solidBg  = grad.c1
-    const ratio    = contrastRatio(autoText(solidBg), solidBg)
-    const ok       = ratio >= 4.5
-    const mid      = ratio >= 3
+    const solidBg = grad.c1
+    const ratio   = contrastRatio(autoText(solidBg), solidBg)
+    const ok = ratio >= 4.5; const mid = ratio >= 3
     return (
       <div style={{ background:T.s1, borderRadius:14, border:`1px solid ${T.sep}`, marginBottom:28, overflow:'hidden' }}>
         <div style={{ padding:'12px 16px 10px', borderBottom:`1px solid ${T.sep}` }}>
@@ -598,11 +587,11 @@ export default function TapCardApp() {
         <div style={{ display:'flex', gap:8, padding:'14px 16px 10px' }}>
           {TEMPLATES.map(t => {
             const active = template === t.id
+            const isDark = lum(solidBg) <= 0.22
             return (
-              <button key={t.id} onClick={() => setTemplate(t.id)} style={{
-                flex:1, borderRadius:8, overflow:'hidden', padding:0,
-                border:`2px solid ${active ? grad.ac : T.sep}`,
-                transition:'all .18s', background:T.s2, cursor:'pointer' }}>
+              <button key={t.id} onClick={() => setTemplate(t.id)}
+                style={{ flex:1, borderRadius:8, overflow:'hidden', padding:0,
+                  border:`2px solid ${active ? grad.ac : T.sep}`, transition:'all .18s', background:T.s2, cursor:'pointer' }}>
                 {t.id === 'gradient' && (
                   <div style={{ height:52, background:grad.css, display:'flex', flexDirection:'column',
                     alignItems:'flex-start', justifyContent:'space-between', padding:'8px 10px' }}>
@@ -617,10 +606,13 @@ export default function TapCardApp() {
                   <div style={{ height:52, background:solidBg, display:'flex', flexDirection:'column',
                     alignItems:'flex-start', justifyContent:'space-between', padding:'8px 10px',
                     borderLeft:`2.5px solid ${grad.ac}` }}>
-                    <div style={{ width:16, height:16, borderRadius:4, background:'rgba(255,255,255,.14)' }}/>
+                    <div style={{ width:16, height:16, borderRadius:4,
+                      background: isDark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.09)' }}/>
                     <div>
-                      <div style={{ height:5, borderRadius:2, marginBottom:3, background:'rgba(255,255,255,.82)', width:36 }}/>
-                      <div style={{ height:3, borderRadius:2, background:'rgba(255,255,255,.35)', width:24 }}/>
+                      <div style={{ height:5, borderRadius:2, marginBottom:3,
+                        background: isDark ? 'rgba(255,255,255,.82)' : 'rgba(0,0,0,.72)', width:36 }}/>
+                      <div style={{ height:3, borderRadius:2,
+                        background: isDark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.30)', width:24 }}/>
                     </div>
                   </div>
                 )}
@@ -648,15 +640,15 @@ export default function TapCardApp() {
         <div style={{ padding:'12px 16px 10px', borderBottom:`1px solid ${T.sep}` }}>
           <div style={{ fontFamily:OT, fontSize:12, fontWeight:500, color:T.t3, letterSpacing:.5, textTransform:'uppercase' }}>Typographie</div>
         </div>
-        <div style={{ display:'flex', gap:0, padding:'12px 16px' }}>
+        <div style={{ display:'flex', padding:'12px 16px' }}>
           {FONTS.map(f => {
             const active = font === f.id
             return (
-              <button key={f.id} onClick={() => setFont(f.id)} style={{
-                flex:1, borderRadius:10, padding:'10px 8px',
-                background: active ? `${grad.ac}18` : 'transparent',
-                border:`1.5px solid ${active ? grad.ac : 'transparent'}`,
-                transition:'all .2s', display:'flex', flexDirection:'column', alignItems:'center', gap:4, cursor:'pointer' }}>
+              <button key={f.id} onClick={() => setFont(f.id)}
+                style={{ flex:1, borderRadius:10, padding:'10px 8px',
+                  background: active ? `${grad.ac}18` : 'transparent',
+                  border:`1.5px solid ${active ? grad.ac : 'transparent'}`,
+                  transition:'all .2s', display:'flex', flexDirection:'column', alignItems:'center', gap:4, cursor:'pointer' }}>
                 <span style={{ fontFamily:f.family, fontSize:22, color:active ? grad.ac : T.t2, lineHeight:1, fontWeight:600 }}>Ag</span>
                 <span style={{ fontFamily:OT, fontSize:10, color:active ? grad.ac : T.t3, fontWeight:active ? 600 : 400 }}>{f.label}</span>
               </button>
@@ -671,18 +663,7 @@ export default function TapCardApp() {
   if (screen === 'splash') return (
     <div style={{ minHeight:'100vh', background:T.bg, display:'flex', alignItems:'center',
       justifyContent:'center', transition:'background .3s' }}>
-      <div style={{ width:48, height:48, borderRadius:16, background:grad.css,
-        display:'flex', alignItems:'center', justifyContent:'center',
-        boxShadow:`0 0 40px ${grad.sh}`, animation:'logoIn .6s ease both' }}>
-        <svg width="26" height="26" viewBox="0 0 48 48" fill="none">
-          <rect x="6" y="11" width="36" height="22" rx="4.5" fill="white" fillOpacity=".96"/>
-          <rect x="12" y="17" width="14" height="2.6" rx="1.3" fill="rgba(90,20,180,.6)"/>
-          <circle cx="37" cy="17.5" r="6.5" fill="url(#sg)"/>
-          <defs><linearGradient id="sg" x1="30" y1="11" x2="44" y2="24">
-            <stop stopColor="#F97316"/><stop offset="1" stopColor="#DB2777"/>
-          </linearGradient></defs>
-        </svg>
-      </div>
+      <LogoMark size={48} grad={grad}/>
     </div>
   )
 
@@ -697,36 +678,15 @@ export default function TapCardApp() {
       <div style={{ minHeight:'100vh', background:T.bg, fontFamily:OT,
         position:'relative', overflow:'hidden', transition:'background .3s' }}>
         <Orbs/>
-
-        {/* ── Desktop: two-column ── */}
         <div style={{ display:'flex', minHeight:'100vh', position:'relative', zIndex:1 }}>
-
-          {/* ── Left column (full on mobile, 480px on desktop) ── */}
-          <div style={{
-            width: isDesktop ? 480 : '100%',
-            flexShrink: 0,
+          {/* Left column */}
+          <div style={{ width: isDesktop ? 480 : '100%', flexShrink:0,
             display:'flex', flexDirection:'column', justifyContent:'center',
             padding: isDesktop ? '60px 48px' : '52px 24px 80px',
-            borderRight: isDesktop ? `1px solid ${T.sep}` : 'none',
-          }}>
-            {/* Logo mark */}
-            <div className="fu1" style={{ marginBottom:32 }}>
-              <div style={{ width:56, height:56, borderRadius:18, background:grad.css,
-                display:'flex', alignItems:'center', justifyContent:'center',
-                boxShadow:`0 8px 28px ${grad.sh}`, marginBottom:24 }}>
-                <svg width="30" height="30" viewBox="0 0 48 48" fill="none">
-                  <rect x="6" y="11" width="36" height="22" rx="4.5" fill="white" fillOpacity=".96"/>
-                  <rect x="12" y="17" width="14" height="2.6" rx="1.3" fill="rgba(90,20,180,.6)"/>
-                  <rect x="12" y="22" width="20" height="1.6" rx=".8"  fill="rgba(90,20,180,.28)"/>
-                  <rect x="12" y="26" width="15" height="1.6" rx=".8"  fill="rgba(90,20,180,.17)"/>
-                  <circle cx="37" cy="17.5" r="6.5" fill="url(#sg2)"/>
-                  <defs><linearGradient id="sg2" x1="30" y1="11" x2="44" y2="24">
-                    <stop stopColor="#F97316"/><stop offset="1" stopColor="#DB2777"/>
-                  </linearGradient></defs>
-                </svg>
-              </div>
-
-              {/* Headline */}
+            borderRight: isDesktop ? `1px solid ${T.sep}` : 'none' }}>
+            <div className="fu1" style={{ marginBottom:28 }}>
+              <LogoMark size={52} grad={grad}/>
+              <div style={{ height:24 }}/>
               <div style={{ fontFamily:CG, fontSize:isDesktop?46:38, fontWeight:600, color:T.t1,
                 letterSpacing:-.8, lineHeight:1.08, marginBottom:14 }}>
                 Votre identité<br/>
@@ -734,18 +694,16 @@ export default function TapCardApp() {
                   professionnelle,
                 </span><br/>en un geste.
               </div>
-
               <div style={{ fontSize:15, color:T.t2, lineHeight:1.7, fontWeight:300, marginBottom:32 }}>
                 Carte de visite digitale · QR code · NFC<br/>
-                <span style={{ color:T.t3 }}>Partagée en 5 secondes. Sans app.</span>
+                <span style={{ color:T.t3 }}>Partagée en 5 secondes. Sans app requise.</span>
               </div>
             </div>
 
-            {/* Value props */}
             <div className="fu2" style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:36 }}>
               {[
-                { icon:<Zap size={15}/>,  text:'Partagez par QR code, lien ou NFC' },
-                { icon:<Globe size={15}/>, text:'Aucune app pour le destinataire' },
+                { icon:<Zap size={15}/>,   text:'Partagez par QR code, lien ou NFC' },
+                { icon:<Globe size={15}/>, text:'Zéro app pour le destinataire' },
                 { icon:<Check size={15}/>, text:'Mise à jour instantanée chez vos contacts' },
               ].map((v, i) => (
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -759,7 +717,6 @@ export default function TapCardApp() {
               ))}
             </div>
 
-            {/* CTAs */}
             <div className="fu3">
               <button onClick={() => setScreen('onboarding')} className="press" style={{
                 width:'100%', padding:'16px', borderRadius:14,
@@ -770,28 +727,22 @@ export default function TapCardApp() {
               <button onClick={() => { setAuthSent(false); setScreen('auth') }} style={{
                 width:'100%', padding:'14px', borderRadius:14,
                 background:T.t5, border:`1px solid ${T.sep}`,
-                color:T.t2, fontSize:14, fontFamily:OT, fontWeight:400 }}>
+                color:T.t2, fontSize:14, fontFamily:OT }}>
                 J&apos;ai déjà une carte →
               </button>
             </div>
 
-            {/* Trust */}
-            <div className="fu4" style={{ marginTop:20, textAlign:'center' }}>
-              <div style={{ fontSize:11, fontWeight:300, color:T.t4, letterSpacing:.3 }}>
-                Aucune inscription · RGPD · Données sécurisées
-              </div>
+            <div style={{ marginTop:20, textAlign:'center',
+              fontSize:11, fontWeight:300, color:T.t4, letterSpacing:.3 }}>
+              Aucune inscription · RGPD · Données sécurisées
             </div>
-
-            {/* Theme toggle */}
-            <div style={{ position:'absolute', top:20, right:20 }}>
-              <ThemeBtn/>
-            </div>
+            <div style={{ position:'absolute', top:20, right:20 }}><ThemeBtn/></div>
           </div>
 
-          {/* ── Right column (desktop only) ── */}
+          {/* Right column desktop */}
           {isDesktop && (
             <div style={{ flex:1, display:'flex', flexDirection:'column',
-              alignItems:'center', justifyContent:'center', padding:'60px 48px', gap:32 }}>
+              alignItems:'center', justifyContent:'center', padding:'60px 48px', gap:28 }}>
               <div style={{ width:'100%', maxWidth:380 }}>
                 <BusinessCard u={demoUser as any} large floating/>
               </div>
@@ -802,13 +753,11 @@ export default function TapCardApp() {
           )}
         </div>
 
-        {/* Mobile: show card preview below fold */}
+        {/* Mobile card preview below */}
         {!isDesktop && (
           <div style={{ position:'relative', zIndex:1, padding:'0 24px 48px' }}>
-            <div style={{ marginBottom:12 }}>
-              <BusinessCard u={demoUser as any} large/>
-            </div>
-            <div style={{ fontSize:11, color:T.t4, fontWeight:300, textAlign:'center' }}>
+            <BusinessCard u={demoUser as any} large/>
+            <div style={{ marginTop:12, fontSize:11, color:T.t4, fontWeight:300, textAlign:'center' }}>
               Aperçu · personnalisable en quelques secondes
             </div>
           </div>
@@ -827,12 +776,9 @@ export default function TapCardApp() {
                   linkedin:form.linkedin, av:pav, logo:logoUrl, gradient:grad, handle:ph, template, font }
     const nFilled = [form.linkedin,...Object.values(socials)].filter(v=>v?.trim()).length
 
-    const steps = [
-      form.name.trim().length > 0,
-      !!(form.email.trim() || form.phone.trim()),
-      !!(form.linkedin.trim() || Object.values(socials).some(v => v?.trim())),
-    ]
-    const done = steps.filter(Boolean).length
+    /* Progress dots — 2 steps only */
+    const step1Done = form.name.trim().length > 0
+    const step2Done = !!(form.email.trim() || form.linkedin.trim())
 
     const LogoRow = () => (
       <Row theme={T}>
@@ -848,7 +794,7 @@ export default function TapCardApp() {
               : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.t3} strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5" fill={T.t3} stroke="none"/><path d="M21 15l-5-5L5 21"/></svg>}
           </button>
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:15, color:T.t1, fontWeight:400 }}>{logoUrl ? 'Logo enregistré' : 'Logo ou photo'}</div>
+            <div style={{ fontSize:15, color:T.t1 }}>{logoUrl ? 'Logo enregistré' : 'Logo ou photo'}</div>
             <div style={{ fontSize:12, color:T.t3, marginTop:2 }}>
               {logoUrl
                 ? <span onClick={() => setLogoUrl(null)} style={{ color:T.red, cursor:'pointer' }}>Supprimer</span>
@@ -860,46 +806,112 @@ export default function TapCardApp() {
       </Row>
     )
 
-    /* ── Left form column ── */
+    const HandleSection = ({ showWarning }: { showWarning?: boolean }) => (
+      <Section label="Lien public"
+        footer={`tapcard.io/${form.handle || (form.name.split(' ')[0]||'vous').toLowerCase()}`}
+        theme={T}>
+        <Row last theme={T}>
+          <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:8 }}>
+            <span style={{ fontSize:15, color:T.t3, flexShrink:0 }}>tapcard.io/</span>
+            <input type="text"
+              placeholder={(form.name.split(' ')[0]||'vous').toLowerCase()}
+              value={form.handle} autoComplete="username"
+              onChange={e => setForm(p=>({...p,handle:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')}))}
+              style={{ flex:1, background:'transparent', border:'none', outline:'none',
+                color:T.blue, fontSize:15, fontFamily:OT, fontWeight:500 }}/>
+            {handleStatus === 'checking' && <span style={{ fontSize:11, color:T.t3 }}>…</span>}
+            {handleStatus === 'ok'       && <span style={{ fontSize:12, color:'#22c55e', fontWeight:500 }}>✓ Disponible</span>}
+            {handleStatus === 'taken'    && <span style={{ fontSize:11, color:T.red, fontWeight:500 }}>Déjà pris</span>}
+          </div>
+        </Row>
+        {showWarning && form.handle && form.handle !== user?.handle && handleStatus === 'ok' && (
+          <div style={{ padding:'10px 16px', fontSize:11, color:'rgba(251,191,36,0.85)',
+            borderTop:`1px solid ${T.sep}`, lineHeight:1.6, fontWeight:300 }}>
+            ⚠︎ Votre ancien lien ne fonctionnera plus après la mise à jour.
+          </div>
+        )}
+      </Section>
+    )
+
+    const SocialsSection = () => (
+      <Section label="Réseaux sociaux" theme={T}>
+        <Row last={!showMoreSoc} theme={T}>
+          <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:12 }}>
+            <SI id="linkedin" size={16} color="#0A66C2"/>
+            <input type="text" placeholder="linkedin.com/in/votre-profil"
+              value={form.linkedin} onChange={e => setForm(p=>({...p,linkedin:e.target.value}))}
+              style={{ flex:1, background:'transparent', border:'none', color:T.t1, fontSize:15, fontFamily:OT }}/>
+          </div>
+        </Row>
+        {showMoreSoc && SOCIALS.map((s, i) => (
+          <Row key={s.id} last={i===SOCIALS.length-1} theme={T}>
+            <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:12 }}>
+              <SI id={s.id} size={15} color={socials[s.id]?.trim() ? s.color : T.t3}/>
+              <input type="text" placeholder={s.ph}
+                value={socials[s.id]||''} onChange={e => setSoc(s.id, e.target.value)}
+                style={{ flex:1, background:'transparent', border:'none', color:T.t1, fontSize:15, fontFamily:OT }}/>
+            </div>
+          </Row>
+        ))}
+        {!showMoreSoc && (
+          <Row last onTap={() => setShowMoreSoc(true)} theme={T}>
+            <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:10 }}>
+              <div style={{ width:22, height:22, borderRadius:'50%', background:T.blue,
+                display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round">
+                  <path d="M5.5 2v7M2 5.5h7"/>
+                </svg>
+              </div>
+              <span style={{ fontSize:15, color:T.blue, fontWeight:500 }}>
+                Autres réseaux
+                {nFilled > 0 && (
+                  <span style={{ background:grad.css, borderRadius:10, padding:'1px 7px',
+                    fontSize:10, fontWeight:600, color:'#fff', marginLeft:8, display:'inline-block', lineHeight:1.6 }}>
+                    {nFilled}
+                  </span>
+                )}
+              </span>
+            </div>
+          </Row>
+        )}
+      </Section>
+    )
+
+    /* ── Form content (shared mobile/desktop) ── */
     const FormContent = () => (
       <div style={{ padding:`0 ${isDesktop?40:16}px 130px` }}>
 
-        {/* Sticky card preview (mobile only — desktop shows in right panel) */}
+        {/* Sticky card preview — mobile only */}
         {!isDesktop && (
           <div style={{ position:'sticky', top:12, zIndex:20, marginBottom:24 }}>
             <BusinessCard u={pu}/>
           </div>
         )}
 
-        {/* ══ STEP 1: Identity first, customization below ══ */}
+        {/* ══ STEP 1: Color FIRST → then Identity ══
+            Rationale: color picker is instant, emotional, zero cognitive load.
+            It creates ownership before the user types anything.
+            Identity fields follow naturally once the user is "engaged". */}
         {!isEditing && onboardStep === 1 && (
           <>
-            {/* 1. Identity — FIRST */}
-            <div className="fu1">
+            <div className="fu1"><ColorPicker/></div>
+
+            <div className="fu2">
               <Section label="Identité" theme={T}>
                 <TextRow placeholder="Prénom et Nom" value={form.name}
                   onChange={v => setForm(p=>({...p,name:v}))} theme={T} autoComplete="name" maxLength={40}/>
                 <TextRow placeholder="Poste / Titre" value={form.role}
-                  onChange={v => setForm(p=>({...p,role:v}))} theme={T} autoComplete="organization-title" maxLength={50}/>
-                <TextRow placeholder="Entreprise" value={form.company}
-                  onChange={v => setForm(p=>({...p,company:v}))} last theme={T} autoComplete="organization" maxLength={60}/>
+                  onChange={v => setForm(p=>({...p,role:v}))} last theme={T} autoComplete="organization-title" maxLength={50}/>
               </Section>
             </div>
 
-            {/* 2. Customization — below */}
-            <div className="fu2"><ColorPicker/></div>
-            <div className="fu3"><TemplatePicker/></div>
-            <div className="fu4"><FontPicker/></div>
-
-            {/* CTA */}
-            <button onClick={doCreate} disabled={!form.name.trim() || creating}
-              className="press" style={{
-                width:'100%', padding:'16px', borderRadius:14,
-                background:form.name.trim() ? grad.css : T.s2,
-                color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
-                boxShadow:form.name.trim() ? `0 8px 32px ${grad.sh}` : 'none',
-                opacity:form.name.trim() && !creating ? 1 : .45, letterSpacing:.2, marginTop:4,
-                cursor:form.name.trim() && !creating ? 'pointer' : 'not-allowed', transition:'all .22s' }}>
+            <button onClick={doCreate} disabled={!form.name.trim() || creating} className="press" style={{
+              width:'100%', padding:'16px', borderRadius:14,
+              background:form.name.trim() ? grad.css : T.s2, color:'#fff',
+              fontSize:16, fontWeight:600, fontFamily:OT,
+              boxShadow:form.name.trim() ? `0 8px 32px ${grad.sh}` : 'none',
+              opacity:form.name.trim() && !creating ? 1 : .45, letterSpacing:.2, marginTop:4,
+              cursor:form.name.trim() && !creating ? 'pointer' : 'not-allowed', transition:'all .22s' }}>
               {creating ? 'Création…' : 'Créer ma carte →'}
             </button>
             <div style={{ textAlign:'center', marginTop:11, fontSize:11, fontWeight:300, color:T.t4, letterSpacing:.3 }}>
@@ -908,7 +920,7 @@ export default function TapCardApp() {
           </>
         )}
 
-        {/* ══ STEP 2: Simplified — only what matters ══ */}
+        {/* ══ STEP 2: Details — minimal by default ══ */}
         {!isEditing && onboardStep === 2 && (
           <>
             <div className="fu1">
@@ -918,8 +930,6 @@ export default function TapCardApp() {
                   onChange={v => setForm(p=>({...p,company:v}))} last theme={T} autoComplete="organization" maxLength={60}/>
               </Section>
             </div>
-
-            {/* Contact — simplified: only email + phone */}
             <div className="fu2">
               <Section label="Contact" theme={T}>
                 <TextRow type="email" placeholder="Email professionnel" value={form.email}
@@ -935,65 +945,22 @@ export default function TapCardApp() {
                       <ChevronDown size={10} color={T.t4}/>
                     </button>
                     <input type="tel" placeholder="Mobile" value={form.phone}
-                      onChange={e => setForm(p=>({...p,phone:e.target.value}))}
-                      autoComplete="tel-national"
+                      onChange={e => setForm(p=>({...p,phone:e.target.value}))} autoComplete="tel-national"
                       style={{ flex:1, background:'transparent', border:'none', outline:'none',
                         color:T.t1, fontSize:15, fontFamily:OT, paddingLeft:12 }}/>
                   </div>
                 </Row>
               </Section>
             </div>
+            <div className="fu3"><SocialsSection/></div>
 
-            {/* LinkedIn — first level */}
-            <div className="fu3">
-              <Section label="Réseaux sociaux" theme={T}>
-                <Row last={!showMoreSoc} theme={T}>
-                  <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:12 }}>
-                    <SI id="linkedin" size={16} color="#0A66C2"/>
-                    <input type="text" placeholder="linkedin.com/in/votre-profil"
-                      value={form.linkedin} onChange={e => setForm(p=>({...p,linkedin:e.target.value}))}
-                      style={{ flex:1, background:'transparent', border:'none', color:T.t1, fontSize:15, fontFamily:OT }}/>
-                  </div>
-                </Row>
-                {showMoreSoc && SOCIALS.map((s, i) => (
-                  <Row key={s.id} last={i===SOCIALS.length-1} theme={T}>
-                    <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:12 }}>
-                      <SI id={s.id} size={15} color={socials[s.id]?.trim() ? s.color : T.t3}/>
-                      <input type="text" placeholder={s.ph}
-                        value={socials[s.id]||''} onChange={e => setSoc(s.id, e.target.value)}
-                        style={{ flex:1, background:'transparent', border:'none', color:T.t1, fontSize:15, fontFamily:OT }}/>
-                    </div>
-                  </Row>
-                ))}
-                {!showMoreSoc && (
-                  <Row last onTap={() => setShowMoreSoc(true)} theme={T}>
-                    <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:10 }}>
-                      <div style={{ width:22, height:22, borderRadius:'50%', background:T.blue,
-                        display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round">
-                          <path d="M5.5 2v7M2 5.5h7"/>
-                        </svg>
-                      </div>
-                      <span style={{ fontSize:15, color:T.blue, fontWeight:500 }}>
-                        Autres réseaux
-                        {nFilled > 0 && <span style={{ background:grad.css, borderRadius:10, padding:'1px 7px',
-                          fontSize:10, fontWeight:600, color:'#fff', marginLeft:8, display:'inline-block', lineHeight:1.6 }}>
-                          {nFilled}
-                        </span>}
-                      </span>
-                    </div>
-                  </Row>
-                )}
-              </Section>
-            </div>
-
-            {/* More info — expandable */}
+            {/* More info — hidden by default */}
             <div className="fu4">
               {!showMoreInfo ? (
                 <button onClick={() => setShowMoreInfo(true)} style={{
                   width:'100%', padding:'12px 16px', borderRadius:12,
-                  background:T.s1, border:`1px solid ${T.sep}`,
-                  color:T.t3, fontSize:13, fontFamily:OT, marginBottom:24,
+                  background:T.s1, border:`1px solid ${T.sep}`, color:T.t3,
+                  fontSize:13, fontFamily:OT, marginBottom:24,
                   display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
                   <ChevronDown size={14}/> Ajouter site web, adresse, 2e téléphone…
                 </button>
@@ -1009,36 +976,21 @@ export default function TapCardApp() {
               )}
             </div>
 
-            {/* Handle */}
-            <div className="fu5">
-              <Section
-                label="Lien public"
-                footer={`tapcard.io/${form.handle || (form.name.split(' ')[0]||'vous').toLowerCase()}`}
-                theme={T}>
-                <Row last theme={T}>
-                  <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:8 }}>
-                    <span style={{ fontSize:15, color:T.t3, flexShrink:0, fontFamily:OT }}>tapcard.io/</span>
-                    <input type="text"
-                      placeholder={(form.name.split(' ')[0]||'vous').toLowerCase()}
-                      value={form.handle} autoComplete="username"
-                      onChange={e => setForm(p=>({...p,handle:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')}))}
-                      style={{ flex:1, background:'transparent', border:'none', outline:'none',
-                        color:T.blue, fontSize:15, fontFamily:OT, fontWeight:500 }}/>
-                    {handleStatus === 'checking' && <span style={{ fontSize:11, color:T.t3, flexShrink:0 }}>…</span>}
-                    {handleStatus === 'ok'       && <span style={{ fontSize:12, color:'#22c55e', flexShrink:0, fontWeight:500 }}>✓ Disponible</span>}
-                    {handleStatus === 'taken'    && <span style={{ fontSize:11, color:T.red, flexShrink:0, fontWeight:500 }}>Déjà pris</span>}
-                  </div>
-                </Row>
-              </Section>
-            </div>
+            <div className="fu5"><HandleSection/></div>
 
             <div className="fu6">
+              {updateError && (
+                <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)',
+                  borderRadius:12, padding:'12px 16px', marginBottom:12, fontSize:13, color:T.red, lineHeight:1.6 }}>
+                  {updateError}
+                </div>
+              )}
               <button onClick={doUpdate}
                 disabled={creating || handleStatus === 'taken' || handleStatus === 'checking'}
                 className="press" style={{
                   width:'100%', padding:'16px', borderRadius:14,
-                  background:handleStatus !== 'taken' ? grad.css : T.s2,
-                  color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
+                  background:handleStatus !== 'taken' ? grad.css : T.s2, color:'#fff',
+                  fontSize:16, fontWeight:600, fontFamily:OT,
                   boxShadow:handleStatus !== 'taken' ? `0 8px 32px ${grad.sh}` : 'none',
                   opacity:!creating && handleStatus !== 'taken' && handleStatus !== 'checking' ? 1 : .45,
                   letterSpacing:.2, marginTop:4, transition:'all .22s' }}>
@@ -1053,7 +1005,9 @@ export default function TapCardApp() {
           </>
         )}
 
-        {/* ══ EDIT MODE: full form ══ */}
+        {/* ══ EDIT MODE: full form ══
+            Template + Font appear only here — not in initial creation flow.
+            This keeps the creation fast; power users find these in Edit. */}
         {isEditing && (
           <>
             <div className="fu1"><ColorPicker/></div>
@@ -1062,9 +1016,9 @@ export default function TapCardApp() {
             <div className="fu4">
               <Section label="Identité" theme={T}>
                 {LogoRow()}
-                <TextRow placeholder="Prénom et Nom" value={form.name}    onChange={v => setForm(p=>({...p,name:v}))} theme={T} autoComplete="name"               maxLength={40}/>
-                <TextRow placeholder="Poste / Titre"  value={form.role}    onChange={v => setForm(p=>({...p,role:v}))} theme={T} autoComplete="organization-title" maxLength={50}/>
-                <TextRow placeholder="Entreprise"      value={form.company} onChange={v => setForm(p=>({...p,company:v}))} last theme={T} autoComplete="organization" maxLength={60}/>
+                <TextRow placeholder="Prénom et Nom" value={form.name}    onChange={v => setForm(p=>({...p,name:v}))}    theme={T} autoComplete="name"               maxLength={40}/>
+                <TextRow placeholder="Poste / Titre"  value={form.role}    onChange={v => setForm(p=>({...p,role:v}))}    theme={T} autoComplete="organization-title" maxLength={50}/>
+                <TextRow placeholder="Entreprise"      value={form.company} onChange={v => setForm(p=>({...p,company:v}))} last theme={T} autoComplete="organization"   maxLength={60}/>
               </Section>
             </div>
             <div className="fu5">
@@ -1095,56 +1049,8 @@ export default function TapCardApp() {
               </Section>
             </div>
             <div className="fu6">
-              <Section
-                label="Lien public"
-                footer={`tapcard.io/${form.handle || user?.handle || ''}`}
-                theme={T}>
-                <Row last theme={T}>
-                  <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:8 }}>
-                    <span style={{ fontSize:15, color:T.t3, flexShrink:0 }}>tapcard.io/</span>
-                    <input type="text" value={form.handle} autoComplete="username"
-                      onChange={e => setForm(p=>({...p,handle:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')}))}
-                      style={{ flex:1, background:'transparent', border:'none', outline:'none',
-                        color:T.blue, fontSize:15, fontFamily:OT, fontWeight:500 }}/>
-                    {handleStatus === 'checking' && <span style={{ fontSize:11, color:T.t3 }}>…</span>}
-                    {handleStatus === 'ok'       && <span style={{ fontSize:12, color:'#22c55e', fontWeight:500 }}>✓</span>}
-                    {handleStatus === 'taken'    && <span style={{ fontSize:11, color:T.red, fontWeight:500 }}>Déjà pris</span>}
-                  </div>
-                </Row>
-              </Section>
-              <Section label="Réseaux sociaux" theme={T}>
-                <Row last={!showMoreSoc} theme={T}>
-                  <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:12 }}>
-                    <SI id="linkedin" size={16} color="#0A66C2"/>
-                    <input type="text" placeholder="linkedin.com/in/votre-profil"
-                      value={form.linkedin} onChange={e => setForm(p=>({...p,linkedin:e.target.value}))}
-                      style={{ flex:1, background:'transparent', border:'none', color:T.t1, fontSize:15, fontFamily:OT }}/>
-                  </div>
-                </Row>
-                {showMoreSoc && SOCIALS.map((s, i) => (
-                  <Row key={s.id} last={i===SOCIALS.length-1} theme={T}>
-                    <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:12 }}>
-                      <SI id={s.id} size={15} color={socials[s.id]?.trim() ? s.color : T.t3}/>
-                      <input type="text" placeholder={s.ph}
-                        value={socials[s.id]||''} onChange={e => setSoc(s.id, e.target.value)}
-                        style={{ flex:1, background:'transparent', border:'none', color:T.t1, fontSize:15, fontFamily:OT }}/>
-                    </div>
-                  </Row>
-                ))}
-                {!showMoreSoc && (
-                  <Row last onTap={() => setShowMoreSoc(true)} theme={T}>
-                    <div style={{ display:'flex', alignItems:'center', minHeight:46, gap:10 }}>
-                      <div style={{ width:22, height:22, borderRadius:'50%', background:T.blue,
-                        display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round">
-                          <path d="M5.5 2v7M2 5.5h7"/>
-                        </svg>
-                      </div>
-                      <span style={{ fontSize:15, color:T.blue, fontWeight:500 }}>Autres réseaux</span>
-                    </div>
-                  </Row>
-                )}
-              </Section>
+              <HandleSection showWarning/>
+              <SocialsSection/>
               {updateError && (
                 <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)',
                   borderRadius:12, padding:'12px 16px', marginBottom:12, fontSize:13, color:T.red, lineHeight:1.6 }}>
@@ -1155,8 +1061,8 @@ export default function TapCardApp() {
                 disabled={!form.name.trim() || creating || handleStatus === 'taken' || handleStatus === 'checking'}
                 className="press" style={{
                   width:'100%', padding:'16px', borderRadius:14,
-                  background:form.name.trim() && handleStatus !== 'taken' ? grad.css : T.s2,
-                  color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
+                  background:form.name.trim() && handleStatus !== 'taken' ? grad.css : T.s2, color:'#fff',
+                  fontSize:16, fontWeight:600, fontFamily:OT,
                   boxShadow:form.name.trim() && handleStatus !== 'taken' ? `0 8px 32px ${grad.sh}` : 'none',
                   opacity:form.name.trim() && !creating && handleStatus !== 'taken' && handleStatus !== 'checking' ? 1 : .45,
                   letterSpacing:.2, transition:'all .22s', marginTop:4 }}>
@@ -1168,87 +1074,82 @@ export default function TapCardApp() {
       </div>
     )
 
+    /* ── Onboarding layout wrapper ── */
     return (
       <div style={{ minHeight:'100vh', background:T.bg, fontFamily:OT, transition:'background .3s', position:'relative' }}>
         <Orbs/>
 
-        {/* Desktop: two-column */}
         {isDesktop ? (
           <div style={{ display:'flex', minHeight:'100vh', position:'relative', zIndex:1 }}>
             {/* Left: scrollable form */}
-            <div style={{ width:480, flexShrink:0, overflowY:'auto', height:'100vh',
-              borderRight:`1px solid ${T.sep}` }}>
+            <div style={{ width:480, flexShrink:0, overflowY:'auto', height:'100vh', borderRight:`1px solid ${T.sep}` }}>
               {/* Header */}
-              <div style={{ padding:'40px 40px 0', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
+              <div style={{ padding:'40px 40px 0', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
                 <div>
-                  <div style={{ fontFamily:CG, fontSize:28, fontWeight:600, color:T.t1, letterSpacing:-.5, lineHeight:1 }}>
+                  <div style={{ fontFamily:CG, fontSize:26, fontWeight:600, color:T.t1, letterSpacing:-.4, lineHeight:1 }}>
                     {isEditing ? 'Modifier' : onboardStep === 1 ? 'Créer ma carte' : 'Finaliser'}
                   </div>
                   <div style={{ fontFamily:OT, fontSize:12, fontWeight:300, color:T.t3, marginTop:4 }}>
-                    {isEditing ? 'Modifiez vos informations' : onboardStep === 1 ? 'Identité · couleur · style' : 'Contact · réseaux · lien'}
+                    {isEditing ? 'Modifiez vos informations' : onboardStep === 1 ? 'Couleur · nom · poste' : 'Contact · réseaux · lien'}
                   </div>
                 </div>
-                <div style={{ display:'flex', gap:8 }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                   <ThemeBtn/>
                   {(isEditing || onboardStep === 2) && (
-                    <button onClick={() => { isEditing ? (setIsEditing(false), setScreen('mycard')) : setOnboardStep(1) }}
+                    <button onClick={() => isEditing ? (setIsEditing(false), setScreen('mycard')) : setOnboardStep(1)}
                       style={{ color:T.t2, fontSize:13, fontFamily:OT, display:'flex', alignItems:'center', gap:4 }}>
                       <ArrowLeft size={13}/>
                     </button>
                   )}
                 </div>
               </div>
-              {/* Progress */}
+              {/* Progress — 2 steps */}
               {!isEditing && (
                 <div style={{ padding:'0 40px', display:'flex', gap:5, marginBottom:16 }}>
-                  {steps.map((ok, i) => (
+                  {[step1Done, step2Done].map((ok, i) => (
                     <div key={i} style={{ flex:1, height:3, borderRadius:2, transition:'background .4s',
-                      background: ok ? grad.ac : (i <= done ? T.sepS : T.sep) }}/>
+                      background: ok ? grad.ac : (i < (onboardStep-1) ? T.sepS : T.sep) }}/>
                   ))}
                 </div>
               )}
               <FormContent/>
             </div>
-            {/* Right: live card preview */}
+            {/* Right: live preview */}
             <div style={{ flex:1, display:'flex', flexDirection:'column',
               alignItems:'center', justifyContent:'center', padding:'60px 48px', gap:24 }}>
               <div style={{ width:'100%', maxWidth:380 }}>
                 <BusinessCard u={pu} large floating/>
               </div>
-              <div style={{ fontSize:11, color:T.t4, fontWeight:300, letterSpacing:.5 }}>
-                Aperçu en temps réel
-              </div>
+              <div style={{ fontSize:11, color:T.t4, fontWeight:300, letterSpacing:.5 }}>Aperçu en temps réel</div>
             </div>
           </div>
         ) : (
-          /* Mobile: single column */
+          /* Mobile */
           <div style={{ position:'relative', zIndex:1 }}>
-            {/* Header */}
-            <div style={{ padding:'48px 20px 0', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+            <div style={{ padding:'48px 20px 0', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
               <div>
-                <div style={{ fontFamily:CG, fontSize:28, fontWeight:600, color:T.t1, letterSpacing:-.5, lineHeight:1 }}>
+                <div style={{ fontFamily:CG, fontSize:26, fontWeight:600, color:T.t1, letterSpacing:-.4, lineHeight:1 }}>
                   {isEditing ? 'Modifier ma carte' : onboardStep === 1 ? 'Créer ma carte' : 'Finaliser'}
                 </div>
-                <div style={{ fontFamily:OT, fontSize:12, fontWeight:300, color:T.t3, marginTop:4 }}>
-                  {isEditing ? 'Modifiez vos informations' : onboardStep === 1 ? 'Identité · couleur · style' : 'Contact · réseaux · lien'}
+                <div style={{ fontFamily:OT, fontSize:12, fontWeight:300, color:T.t3, marginTop:3 }}>
+                  {isEditing ? 'Modifiez vos informations' : onboardStep === 1 ? 'Couleur · nom · poste' : 'Contact · réseaux · lien'}
                 </div>
               </div>
-              <div style={{ display:'flex', gap:8 }}>
+              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                 <ThemeBtn/>
                 {(isEditing || onboardStep === 2) && (
-                  <button onClick={() => { isEditing ? (setIsEditing(false), setScreen('mycard')) : setOnboardStep(1) }}
+                  <button onClick={() => isEditing ? (setIsEditing(false), setScreen('mycard')) : setOnboardStep(1)}
                     style={{ color:T.t2, fontSize:13, fontFamily:OT, display:'flex', alignItems:'center', gap:4 }}>
                     <ArrowLeft size={14}/>
                   </button>
                 )}
               </div>
             </div>
-            {/* Progress */}
             {!isEditing && (
-              <div style={{ padding:'0 20px', display:'flex', gap:5, marginBottom:20 }}>
-                {steps.map((ok, i) => (
+              <div style={{ padding:'0 20px', display:'flex', gap:5, marginBottom:18 }}>
+                {[step1Done, step2Done].map((ok, i) => (
                   <div key={i} style={{ flex:1, height:3, borderRadius:2, transition:'background .4s',
-                    background: ok ? grad.ac : (i <= done ? T.sepS : T.sep) }}/>
+                    background: ok ? grad.ac : (i < (onboardStep-1) ? T.sepS : T.sep) }}/>
                 ))}
               </div>
             )}
@@ -1305,8 +1206,8 @@ export default function TapCardApp() {
 
   /* ══════════════════════════════════════════════════════════ AUTH */
   if (screen === 'auth') return (
-    <div style={{ minHeight:'100vh', background:T.bg, fontFamily:OT, display:'flex',
-      flexDirection:'column', alignItems:'center', justifyContent:'center',
+    <div style={{ minHeight:'100vh', background:T.bg, fontFamily:OT,
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
       padding:'40px 24px', transition:'background .3s', position:'relative' }}>
       <Orbs/>
       <div style={{ width:'100%', maxWidth:400, position:'relative', zIndex:1 }}>
@@ -1339,8 +1240,8 @@ export default function TapCardApp() {
             <button onClick={doSendMagicLink} disabled={!authEmail.trim() || authSending}
               className="press" style={{
                 width:'100%', padding:'16px', borderRadius:14,
-                background:authEmail.trim() ? grad.css : T.s2,
-                color:'#fff', fontSize:16, fontWeight:600, fontFamily:OT,
+                background:authEmail.trim() ? grad.css : T.s2, color:'#fff',
+                fontSize:16, fontWeight:600, fontFamily:OT,
                 boxShadow:authEmail.trim() ? `0 8px 32px ${grad.sh}` : 'none',
                 opacity:authEmail.trim() && !authSending ? 1 : .45, marginBottom:12, transition:'all .22s' }}>
               {authSending ? 'Envoi…' : 'Envoyer le lien de connexion'}
@@ -1363,7 +1264,8 @@ export default function TapCardApp() {
                 <strong style={{ color:T.t2, fontWeight:500 }}>{authEmail}</strong>
               </div>
             </div>
-            <div style={{ background:T.s1, borderRadius:14, padding:'18px 16px', border:`1px solid ${T.sep}`, marginBottom:20 }}>
+            <div style={{ background:T.s1, borderRadius:14, padding:'18px 16px',
+              border:`1px solid ${T.sep}`, marginBottom:20 }}>
               <div style={{ fontSize:13, color:T.t3, lineHeight:1.8, fontWeight:300 }}>
                 📬 Cliquez sur le lien reçu par email pour vous connecter.
               </div>
@@ -1394,39 +1296,68 @@ export default function TapCardApp() {
     const soc = getFilledSocials(u.linkedin, u.socials)
     const qr  = `/api/qr?handle=${u.handle}&dark=${dark ? '1' : '0'}`
 
+    /* Desktop navigation items — shown in header, tab bar hidden */
+    const navItems = [
+      { id:'card'     as Nav, l:'Carte',    ic:<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="6" width="20" height="14" rx="3"/></svg> },
+      { id:'contacts' as Nav, l:'Contacts', ic:<Users size={16}/> },
+      { id:'profil'   as Nav, l:'Profil',   ic:<Settings size={16}/> },
+    ]
+
     return (
       <div style={{ minHeight:'100vh', background:T.bg, fontFamily:OT, position:'relative', transition:'background .3s' }}>
         <Orbs/>
-        <div style={{ maxWidth: isDesktop ? 'none' : 480, margin:'0 auto', position:'relative', zIndex:1 }}>
 
-        {/* Desktop right panel: large card + QR */}
-        <DesktopPanel>
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:28, width:'100%', maxWidth:400 }}>
-            <BusinessCard u={{ ...u, logo: u.logo ?? undefined }} large floating/>
-            <div style={{ display:'flex', gap:16 }}>
+        {/* ── Desktop right panel: large card + QR ── */}
+        {isDesktop && (
+          <div style={{ position:'fixed', top:0, bottom:0, left:480, right:0,
+            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+            padding:'60px 48px', gap:28, zIndex:1,
+            borderLeft:`1px solid ${T.sep}`, background:T.bg }}>
+            <div style={{ width:'100%', maxWidth:380 }}>
+              <BusinessCard u={{ ...u, logo: u.logo ?? undefined }} large floating/>
+            </div>
+            <div style={{ display:'flex', gap:16, alignItems:'center' }}>
               <div style={{ position:'relative', padding:10, background:'#fff', borderRadius:14,
                 boxShadow:`0 12px 40px ${g.sh}` }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={qr} width={100} height={100} alt="QR" style={{ display:'block', borderRadius:6 }}/>
+                <img src={qr} width={90} height={90} alt="QR" style={{ display:'block', borderRadius:6 }}/>
               </div>
-              <div style={{ display:'flex', flexDirection:'column', justifyContent:'center', gap:6 }}>
-                <div style={{ fontFamily:CG, fontSize:16, fontWeight:600, color:T.t1 }}>tapcard.io/{u.handle}</div>
-                <div style={{ fontSize:12, color:T.t3, fontWeight:300 }}>Scannez avec l&apos;appareil photo</div>
+              <div>
+                <div style={{ fontFamily:CG, fontSize:15, fontWeight:600, color:T.t1, marginBottom:3 }}>
+                  tapcard.io/{u.handle}
+                </div>
+                <div style={{ fontSize:12, color:T.t3, fontWeight:300 }}>Scan avec l&apos;appareil photo</div>
               </div>
             </div>
           </div>
-        </DesktopPanel>
+        )}
 
-        {/* Main content — left column on desktop */}
-        <div style={{ maxWidth: isDesktop ? 480 : undefined, paddingBottom:88,
-          overflowY: isDesktop ? 'auto' : undefined }}>
+        {/* ── Main content (full on mobile, 480px on desktop) ── */}
+        <div style={{ maxWidth:480, position:'relative', zIndex:1,
+          height: isDesktop ? '100vh' : undefined,
+          overflowY: isDesktop ? 'auto' : undefined,
+          paddingBottom: isDesktop ? 0 : 88 }}>
 
-          {/* Nav bar */}
-          <div style={{ padding:'52px 20px 0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <div style={{ fontFamily:CG, fontSize:24, fontWeight:600, color:T.t1 }}>
-              tap<span style={{ background:g.css, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>card</span>
-            </div>
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          {/* ── Header with desktop nav ── */}
+          <div style={{ padding:'52px 20px 0', display:'flex', justifyContent:'space-between', alignItems:'center',
+            marginBottom:isDesktop ? 0 : undefined }}>
+            {/* Logo mark — no text */}
+            <LogoMark size={34} grad={g}/>
+
+            <div style={{ display:'flex', alignItems:'center', gap: isDesktop ? 6 : 10 }}>
+              {/* Desktop navigation inline in header */}
+              {isDesktop && navItems.map(item => (
+                <button key={item.id} onClick={() => setNav(item.id)} style={{
+                  display:'flex', alignItems:'center', gap:6, padding:'7px 12px', borderRadius:9,
+                  background: nav === item.id ? `${g.ac}18` : 'transparent',
+                  border:`1px solid ${nav === item.id ? `${g.ac}40` : 'transparent'}`,
+                  color: nav === item.id ? g.ac : T.t2,
+                  fontSize:13, fontFamily:OT, fontWeight: nav === item.id ? 600 : 400,
+                  transition:'all .18s' }}>
+                  {item.ic} {item.l}
+                </button>
+              ))}
+
               <ThemeBtn/>
               <button onClick={() => window.open(`/${u.handle}`, '_blank')} style={{
                 background:T.t5, border:`1px solid ${T.sep}`, borderRadius:10, padding:'7px 13px',
@@ -1439,31 +1370,34 @@ export default function TapCardApp() {
           {/* ─ CARTE tab ─ */}
           {nav === 'card' && (
             <div style={{ padding:'24px 16px' }}>
-              {/* Stats */}
+              {/* Stats with skeleton loaders */}
               <div className="fu1" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:22 }}>
                 {[
-                  { l:'Vues',     v: u.view_count != null ? String(u.view_count) : '—' },
-                  { l:'Contacts', v: connectionCount !== null ? String(connectionCount) : '—' },
+                  { l:'Vues',     v: u.view_count != null ? String(u.view_count) : null },
+                  { l:'Contacts', v: connectionCount !== null ? String(connectionCount) : null },
                   { l:'Ce mois',  v: contactsLoaded ? String(contacts.filter(c => {
                       const d = new Date(c.met_at); const n = new Date()
                       return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()
-                    }).length) : '—' },
+                    }).length) : null },
                 ].map(s => (
                   <div key={s.l} style={{ background:T.s1, border:`1px solid ${T.sep}`,
                     borderRadius:14, padding:'15px 12px', textAlign:'center' }}>
-                    <div style={{ fontFamily:CG, fontSize:26, fontWeight:600, color:T.t1, lineHeight:1 }}>{s.v}</div>
-                    <div style={{ fontFamily:OT, fontSize:10, fontWeight:400, color:T.t3,
-                      marginTop:5, letterSpacing:.4, textTransform:'uppercase' }}>{s.l}</div>
+                    {s.v !== null
+                      ? <div style={{ fontFamily:CG, fontSize:26, fontWeight:600, color:T.t1, lineHeight:1 }}>{s.v}</div>
+                      : <div style={{ display:'flex', justifyContent:'center', marginBottom:4 }}><Skeleton w={36} h={24} r={4}/></div>
+                    }
+                    <div style={{ fontFamily:OT, fontSize:10, color:T.t3, marginTop:5, letterSpacing:.4, textTransform:'uppercase' }}>{s.l}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Card (only on mobile — desktop shows in right panel) */}
+              {/* Card — mobile only, desktop shows in right panel */}
               {!isDesktop && (
                 <div className="fu2" style={{ marginBottom:26 }}>
                   <BusinessCard u={{ ...u, logo: u.logo ?? undefined }} floating/>
                 </div>
               )}
+              {isDesktop && <div style={{ height:16 }}/>}
 
               {soc.length > 0 && (
                 <div className="fu3" style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:22 }}>
@@ -1483,8 +1417,7 @@ export default function TapCardApp() {
                   <div style={{ position:'absolute', inset:-10, borderRadius:22,
                     background:g.sh.replace('80','30'), animation:'pulse 2.4s ease-out infinite' }}/>
                   <button onClick={() => doNativeShare(u.handle, u.name)} className="press" style={{
-                    position:'relative', display:'flex', alignItems:'center',
-                    justifyContent:'center', gap:10,
+                    position:'relative', display:'flex', alignItems:'center', justifyContent:'center', gap:10,
                     background:g.css, borderRadius:14, padding:'15px', color:'#fff',
                     fontSize:15, fontWeight:600, fontFamily:OT,
                     boxShadow:`0 10px 38px ${g.sh}`, width:'100%', letterSpacing:.2 }}>
@@ -1520,7 +1453,7 @@ export default function TapCardApp() {
                 ? (a.card?.name ?? a.contact_handle).localeCompare(b.card?.name ?? b.contact_handle, 'fr')
                 : new Date(b.met_at).getTime() - new Date(a.met_at).getTime()
               )
-            const PAGE   = 20
+            const PAGE    = 20
             const visible = filtered.slice(0, contactPage * PAGE)
             const hasMore = filtered.length > visible.length
             return (
@@ -1528,9 +1461,11 @@ export default function TapCardApp() {
                 <div className="fu1" style={{ marginBottom:16 }}>
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                     <div>
-                      <div style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5 }}>Connexions</div>
+                      <div style={{ fontFamily:CG, fontSize:28, fontWeight:600, color:T.t1, letterSpacing:-.5 }}>Connexions</div>
                       <div style={{ fontSize:12, color:T.t3, fontWeight:300, marginTop:2 }}>
-                        {contactsLoaded ? `${filtered.length}${q ? ` / ${contacts.length}` : ''} contact${contacts.length !== 1 ? 's' : ''}` : '…'}
+                        {contactsLoaded
+                          ? `${filtered.length}${q ? ` / ${contacts.length}` : ''} contact${contacts.length !== 1 ? 's' : ''}`
+                          : '…'}
                       </div>
                     </div>
                     <button onClick={() => setShowScanner(true)}
@@ -1553,8 +1488,7 @@ export default function TapCardApp() {
                       <Search size={14} color={T.t3} strokeWidth={1.5}/>
                       <input type="search" placeholder="Rechercher…" value={contactSearch}
                         onChange={e => { setContactSearch(e.target.value); setContactPage(1) }}
-                        style={{ flex:1, background:'transparent', border:'none', outline:'none',
-                          color:T.t1, fontSize:14, fontFamily:OT }}/>
+                        style={{ flex:1, background:'transparent', border:'none', outline:'none', color:T.t1, fontSize:14, fontFamily:OT }}/>
                       {contactSearch && (
                         <button onClick={() => setContactSearch('')} style={{ color:T.t3, display:'flex', alignItems:'center' }}>
                           <X size={13}/>
@@ -1575,7 +1509,19 @@ export default function TapCardApp() {
                   </div>
                 )}
 
-                {!contactsLoaded && <div style={{ textAlign:'center', padding:'40px 0', color:T.t3, fontSize:14 }}>Chargement…</div>}
+                {!contactsLoaded && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                    {[1,2,3].map(i => (
+                      <div key={i} style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 0' }}>
+                        <Skeleton w={40} h={40} r={13}/>
+                        <div style={{ flex:1, display:'flex', flexDirection:'column', gap:6 }}>
+                          <Skeleton w="60%" h={14} r={4}/>
+                          <Skeleton w="40%" h={11} r={3}/>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {contactsLoaded && contacts.length === 0 && (
                   <div style={{ textAlign:'center', padding:'40px 20px' }}>
                     <div style={{ fontSize:32, marginBottom:12 }}>🤝</div>
@@ -1653,7 +1599,7 @@ export default function TapCardApp() {
           {/* ─ PROFIL tab ─ */}
           {nav === 'profil' && (
             <div style={{ padding:'24px 16px' }}>
-              <div className="fu1" style={{ fontFamily:CG, fontSize:32, fontWeight:600, color:T.t1, letterSpacing:-.5, marginBottom:22 }}>Profil</div>
+              <div className="fu1" style={{ fontFamily:CG, fontSize:28, fontWeight:600, color:T.t1, letterSpacing:-.5, marginBottom:22 }}>Profil</div>
               <Section label="Compte" theme={T}>
                 {authUser ? (
                   <>
@@ -1715,10 +1661,10 @@ export default function TapCardApp() {
               </Section>
               <Section label="Pro" theme={T}>
                 {[
-                  {l:'Multi-cartes',  d:'Pro · Perso · Freelance',       badge:'PRO'},
-                  {l:'Analytiques',   d:'Vues, scans, conversions',      badge:'PRO'},
-                  {l:'CRM Connect',   d:'HubSpot · Salesforce · Notion', badge:'PRO'},
-                  {l:'Sticker NFC',   d:'Commander — 4,90€'},
+                  { l:'Multi-cartes', d:'Pro · Perso · Freelance',       badge:'PRO' },
+                  { l:'Analytiques',  d:'Vues, scans, conversions',      badge:'PRO' },
+                  { l:'CRM Connect',  d:'HubSpot · Salesforce · Notion', badge:'PRO' },
+                  { l:'Sticker NFC',  d:'Commander — 4,90€' },
                 ].map((it, i, a) => (
                   <Row key={i} last={i===a.length-1} onTap={() => {}} theme={T}>
                     <div style={{ display:'flex', alignItems:'center', minHeight:50, justifyContent:'space-between' }}>
@@ -1752,38 +1698,37 @@ export default function TapCardApp() {
             </div>
           )}
         </div>
-        </div>
 
-        {/* Tab bar — constrained to 480px on desktop */}
-        <div style={{ position:'fixed', bottom:0, left:0, right:0,
-          background: dark ? 'rgba(10,10,15,.92)' : 'rgba(242,242,247,.92)',
-          backdropFilter:'blur(28px) saturate(1.8)', borderTop:`1px solid ${T.sep}`,
-          padding:'11px 0 22px', zIndex:50, transition:'background .3s' }}>
-          <div style={{ maxWidth: isDesktop ? 480 : '100%', margin:'0 auto', display:'flex', justifyContent:'space-around' }}>
-            {([
-              { id:'card',     l:'Carte',    ic:<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="6" width="20" height="14" rx="3"/></svg> },
-              { id:'contacts', l:'Contacts', ic:<Users size={20}/> },
-              { id:'profil',   l:'Profil',   ic:<Settings size={20}/> },
-            ] as const).map(item => (
-              <button key={item.id} onClick={() => setNav(item.id)} style={{
-                display:'flex', flexDirection:'column', alignItems:'center', gap:3,
-                color:nav === item.id ? g.ac : T.t3,
-                fontSize:10, fontFamily:OT, fontWeight:nav === item.id ? 500 : 400,
-                transition:'color .16s', flex:1 }}>
-                {item.ic}<span style={{ marginTop:1 }}>{item.l}</span>
-              </button>
-            ))}
+        {/* ── Tab bar — MOBILE ONLY ── */}
+        {!isDesktop && (
+          <div style={{ position:'fixed', bottom:0, left:0, right:0,
+            background: dark ? 'rgba(10,10,15,.92)' : 'rgba(242,242,247,.92)',
+            backdropFilter:'blur(28px) saturate(1.8)', borderTop:`1px solid ${T.sep}`,
+            padding:'11px 0 22px', zIndex:50, transition:'background .3s' }}>
+            <div style={{ display:'flex', justifyContent:'space-around' }}>
+              {navItems.map(item => (
+                <button key={item.id} onClick={() => setNav(item.id)} style={{
+                  display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+                  color:nav === item.id ? g.ac : T.t3,
+                  fontSize:10, fontFamily:OT, fontWeight:nav === item.id ? 500 : 400,
+                  transition:'color .16s', flex:1 }}>
+                  {item.ic}<span style={{ marginTop:1 }}>{item.l}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ── SHARE SHEET ── */}
         {share && (
           <div className="fi" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.55)', zIndex:100 }}>
             <div onClick={() => setShare(false)} style={{ position:'absolute', inset:0 }}/>
-            <div className="su" style={{ position:'absolute', bottom:0, left:isDesktop?'auto':0, right:0,
+            <div className="su" style={{
+              position:'absolute', bottom:0,
+              left: isDesktop ? 'auto' : 0, right:0,
               width: isDesktop ? 480 : '100%',
-              background:T.s1, borderRadius: isDesktop ? '22px 22px 0 0' : '22px 22px 0 0',
-              maxHeight:'92vh', display:'flex', flexDirection:'column', overflow:'hidden', border:`1px solid ${T.sep}` }}>
+              background:T.s1, borderRadius:'22px 22px 0 0', maxHeight:'92vh',
+              display:'flex', flexDirection:'column', overflow:'hidden', border:`1px solid ${T.sep}` }}>
               <div style={{ padding:'10px 0 0', display:'flex', justifyContent:'center' }}>
                 <div style={{ width:36, height:4, borderRadius:2, background:T.s3 }}/>
               </div>
@@ -1811,6 +1756,7 @@ export default function TapCardApp() {
               </div>
               <div style={{ flex:1, padding:'0 20px 52px', overflowY:'auto',
                 display:'flex', flexDirection:'column', alignItems:'center' }}>
+
                 {stab === 'qr' && (
                   <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:22, width:'100%' }}>
                     <div style={{ position:'relative', padding:14, background:'#fff', borderRadius:20,
@@ -1836,11 +1782,11 @@ export default function TapCardApp() {
                     <div style={{ display:'flex', gap:9, width:'100%' }}>
                       {[
                         { l:'WhatsApp', e:'💬', bg:'rgba(37,211,102,.1)', bc:'rgba(37,211,102,.22)',
-                          fn:()=>window.open(`https://wa.me/?text=${encodeURIComponent(`Ma carte : ${window.location.origin}/${u.handle}`)}`) },
+                          fn:()=>window.open(`https://wa.me/?text=${encodeURIComponent(`${window.location.origin}/${u.handle}`)}`) },
                         { l:'SMS',   e:'📱', bg:T.t5, bc:T.sep,
                           fn:()=>window.open(`sms:?body=${encodeURIComponent(`${window.location.origin}/${u.handle}`)}`) },
                         { l:'Email', e:'📧', bg:T.t5, bc:T.sep,
-                          fn:()=>window.open(`mailto:?subject=Ma carte TapCard&body=${encodeURIComponent(window.location.origin+'/'+u.handle)}`) },
+                          fn:()=>window.open(`mailto:?subject=Ma carte&body=${encodeURIComponent(window.location.origin+'/'+u.handle)}`) },
                       ].map(b => (
                         <button key={b.l} onClick={b.fn} className="press" style={{ flex:1, padding:'13px 6px',
                           borderRadius:12, background:b.bg, border:`1px solid ${b.bc}`,
@@ -1852,6 +1798,7 @@ export default function TapCardApp() {
                     </div>
                   </div>
                 )}
+
                 {stab === 'link' && (
                   <div style={{ width:'100%', display:'flex', flexDirection:'column', gap:14 }}>
                     <div style={{ textAlign:'center', padding:'10px 0 4px' }}>
@@ -1890,6 +1837,7 @@ export default function TapCardApp() {
                     </Section>
                   </div>
                 )}
+
                 {stab === 'nfc' && (
                   <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:22, width:'100%', paddingTop:14 }}>
                     <div style={{ position:'relative', width:116, height:116, borderRadius:'50%',
@@ -1941,7 +1889,7 @@ export default function TapCardApp() {
                     })
                     setConnectionCount(c => (c ?? 0) + 1)
                     setContactsLoaded(false)
-                  } catch { /* silent */ }
+                  } catch {}
                 }
               }}
             />
