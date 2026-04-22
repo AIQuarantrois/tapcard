@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from 'next'
-import { Cormorant_Garamond, Inter } from 'next/font/google'
+import { Cormorant_Garamond, Outfit } from 'next/font/google'
 import './globals.css'
 
+// ── P1 FIX : Outfit (pas Inter) pour correspondre au design system ──
 const cg = Cormorant_Garamond({
   weight: ['500', '600', '700'],
   subsets: ['latin'],
@@ -9,7 +10,7 @@ const cg = Cormorant_Garamond({
   display: 'swap',
 })
 
-const ot = Inter({
+const ot = Outfit({
   weight: ['300', '400', '500', '600', '700'],
   subsets: ['latin'],
   variable: '--font-ot',
@@ -26,7 +27,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: 'TapCard — One tap. Real connection.',
-  description: 'Créez votre carte de visite digitale en 30 secondes. Partagez par QR code, NFC ou lien.',
+  description: 'Créez votre carte de visite digitale en 30 secondes. Partagez par QR code, NFC ou lien. Sans installation.',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
@@ -36,19 +37,35 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/favicon.svg',       type: 'image/svg+xml' },           // modern browsers
-      { url: '/api/icon?size=32',  sizes: '32x32',  type: 'image/png' }, // legacy
-      { url: '/api/icon?size=192', sizes: '192x192', type: 'image/png' }, // PWA
+      { url: '/favicon.svg',       type: 'image/svg+xml' },
+      { url: '/api/icon?size=32',  sizes: '32x32',  type: 'image/png' },
+      { url: '/api/icon?size=192', sizes: '192x192', type: 'image/png' },
     ],
     apple: [
       { url: '/api/icon?size=180', sizes: '180x180', type: 'image/png' },
     ],
     shortcut: '/favicon.svg',
   },
+  // ── P0 FIX : og:image par défaut ──────────────────────────────────
   openGraph: {
     title: 'TapCard — One tap. Real connection.',
-    description: 'Créez votre carte de visite digitale en 30 secondes.',
+    description: 'Créez votre carte de visite digitale en 30 secondes. Partagez par QR code, NFC ou lien.',
     type: 'website',
+    siteName: 'TapCard',
+    images: [
+      {
+        url: '/api/og',          // og image générique sans handle
+        width: 1200,
+        height: 630,
+        alt: 'TapCard — One tap. Real connection.',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'TapCard — One tap. Real connection.',
+    description: 'Créez votre carte de visite digitale en 30 secondes.',
+    images: ['/api/og'],
   },
 }
 

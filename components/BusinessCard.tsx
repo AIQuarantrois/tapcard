@@ -66,15 +66,20 @@ const SERIF = 'var(--font-cg), Georgia, serif'
 const MONO  = "'Courier New', 'SF Mono', Consolas, monospace"
 
 export default function BusinessCard({ u, grad, large = false, floating = false }: Props) {
-  const g      = u?.gradient ?? grad ?? { css:'linear-gradient(140deg,#5B21B6,#BE185D)', sh:'#5B21B680', ac:'#7C3AED', c1:'#5B21B6', c2:'#BE185D' }
-  const soc    = getFilledSocials(u?.linkedin, u?.socials)
-  const av     = u?.av ?? 'TC'
-  const src    = (u?.logo ?? u?.logo_url) ?? null
-  /* backward compat: 'minimal' / 'bold' → 'gradient' */
-  const tmpl   = u?.template === 'solid' ? 'solid' : 'gradient'
+  const g       = u?.gradient ?? grad ?? { css:'linear-gradient(140deg,#5B21B6,#BE185D)', sh:'#5B21B680', ac:'#7C3AED', c1:'#5B21B6', c2:'#BE185D' }
+  const soc     = getFilledSocials(u?.linkedin, u?.socials)
+  const av      = u?.av ?? 'TC'
+
+  // ── P0 FIX : une seule source de vérité pour le logo ──────────────────
+  // logo_url = upload stocké en base (prod)
+  // logo     = data URL temporaire (preview onboarding)
+  // On prend le premier disponible, jamais les deux à la fois.
+  const logoSrc = (u?.logo_url ?? u?.logo) ?? null
+
+  const tmpl    = u?.template === 'solid' ? 'solid' : 'gradient'
   const nameFont = u?.font === 'mono' ? MONO : u?.font === 'serif' ? SERIF : SANS
 
-  /* Scale with large prop */
+  /* Scale */
   const avSz   = large ? 48 : 36
   const avR    = large ? 10 : 7
   const nameSz = large ? 26 : 20
@@ -109,32 +114,38 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
         {/* Radial highlight */}
         <div style={{ position:'absolute', top:-52, right:-36, width:170, height:170, borderRadius:'50%',
           background:'radial-gradient(circle,rgba(255,255,255,.22),transparent 68%)', pointerEvents:'none' }}/>
-        {/* Noise grain — depth without visual noise */}
+        {/* Grain */}
         <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', opacity:.045, pointerEvents:'none', mixBlendMode:'overlay' as const }} xmlns="http://www.w3.org/2000/svg">
           <filter id="tcnoise"><feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/></filter>
           <rect width="100%" height="100%" filter="url(#tcnoise)"/>
         </svg>
 
         <div style={inner}>
-          {/* Top: handle/logo + avatar */}
+          {/* ── Top : @handle (toujours) + avatar/logo (une seule occurrence) ── */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+
+            {/* Gauche : toujours @handle — jamais le logo ici */}
             <div style={{ fontSize:metaSz, fontFamily:MONO, color:'rgba(255,255,255,.40)', letterSpacing:.7, lineHeight:1 }}>
-              {src
-                ? <img src={src} alt="" style={{ height:large?20:16, width:'auto', maxWidth:64, objectFit:'contain', opacity:.82 }}/>
-                : (u?.handle ? `@${u.handle}` : 'tapcard')
-              }
+              @{u?.handle ?? 'tapcard'}
             </div>
-            <div style={{ width:avSz, height:avSz, borderRadius:avR, flexShrink:0,
+
+            {/* Droite : avatar OU logo — jamais les deux */}
+            <div style={{
+              width:avSz, height:avSz, borderRadius:avR, flexShrink:0,
               background:'rgba(255,255,255,.18)', backdropFilter:'blur(10px)',
               overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
               fontSize:large?14:11, fontWeight:700, color:'rgba(255,255,255,.90)', fontFamily:SANS,
               boxShadow:'inset 0 0 0 1px rgba(255,255,255,.26), 0 4px 14px rgba(0,0,0,.22)',
-              letterSpacing:-.5 }}>
-              {src ? <img src={src} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : av}
+              letterSpacing:-.5,
+            }}>
+              {logoSrc
+                ? <img src={logoSrc} alt="logo" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+                : av  /* initiales si pas de logo */
+              }
             </div>
           </div>
 
-          {/* Middle: identity */}
+          {/* ── Middle : identité ── */}
           <div>
             <div style={{ fontFamily:nameFont, fontSize:nameSz, fontWeight:700, color:'#fff',
               lineHeight:1.08, letterSpacing:-.4,
@@ -147,7 +158,7 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
             </div>
           </div>
 
-          {/* Bottom: socials + QR */}
+          {/* ── Bottom : réseaux + QR ── */}
           <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between' }}>
             <div>
               {soc.length > 0 ? (
@@ -192,7 +203,7 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
     <div className={floating ? 'flt' : ''}
       style={{ ...shell, background: bg, boxShadow: shell.boxShadow,
         border: isDark ? 'none' : '1px solid rgba(0,0,0,.07)' }}>
-      {/* Subtle gradient sheen */}
+      {/* Gradient sheen */}
       <div style={{ position:'absolute', inset:0,
         background:`linear-gradient(150deg,${g.ac}18 0%,transparent 52%)`, pointerEvents:'none' }}/>
       {/* Left accent bar */}
@@ -200,24 +211,28 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
         background:`linear-gradient(to bottom,${g.ac},${g.c2})` }}/>
 
       <div style={{ ...inner, paddingLeft: padH + 8 }}>
-        {/* Top: handle/logo + avatar */}
+        {/* ── Top : @handle (toujours) + avatar/logo (une seule occurrence) ── */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+
+          {/* Gauche : toujours @handle */}
           <div style={{ fontSize:metaSz, fontFamily:MONO, color:txtMut, letterSpacing:.7, lineHeight:1 }}>
-            {src
-              ? <img src={src} alt="" style={{ height:large?20:16, width:'auto', maxWidth:64, objectFit:'contain', opacity:.72 }}/>
-              : (u?.handle ? `@${u.handle}` : 'tapcard')
-            }
+            @{u?.handle ?? 'tapcard'}
           </div>
+
+          {/* Droite : avatar OU logo */}
           <div style={{ width:avSz, height:avSz, borderRadius:avR, flexShrink:0,
             background:avBg, overflow:'hidden',
             display:'flex', alignItems:'center', justifyContent:'center',
             fontSize:large?14:11, fontWeight:700, color:txtSub, fontFamily:SANS,
             boxShadow:`inset 0 0 0 1px ${avBorder}`, letterSpacing:-.5 }}>
-            {src ? <img src={src} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : av}
+            {logoSrc
+              ? <img src={logoSrc} alt="logo" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+              : av
+            }
           </div>
         </div>
 
-        {/* Middle: identity */}
+        {/* ── Middle ── */}
         <div>
           <div style={{ fontFamily:nameFont, fontSize:nameSz, fontWeight:700, color:txtMain,
             lineHeight:1.08, letterSpacing:-.4,
@@ -230,7 +245,7 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
           </div>
         </div>
 
-        {/* Bottom: socials + QR */}
+        {/* ── Bottom ── */}
         <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between' }}>
           <div>
             {soc.length > 0 ? (
