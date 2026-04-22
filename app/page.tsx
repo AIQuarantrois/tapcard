@@ -5,6 +5,7 @@ const QRScanner = lazy(() => import('@/components/QRScanner'))
 import {
   X, Copy, Check, ArrowLeft, Share2, Users, Settings,
   Eye, ChevronRight, ChevronDown, Mail, Wifi, Search, Sun, Moon,
+  Globe, MapPin, Phone,
 } from 'lucide-react'
 import BusinessCard, { SI } from '@/components/BusinessCard'
 import { supabaseBrowser } from '@/lib/supabase-browser'
@@ -23,11 +24,14 @@ type Nav    = 'card' | 'contacts' | 'profil'
 
 interface FormState {
   name: string; role: string; company: string
-  email: string; phone: string; handle: string; linkedin: string
+  email: string; phone: string; phone2: string
+  website: string; address: string
+  handle: string; linkedin: string
 }
 interface UserState {
   name: string; role?: string; company?: string
-  email?: string; phone?: string; linkedin?: string
+  email?: string; phone?: string; phone2?: string
+  website?: string; address?: string; linkedin?: string
   handle: string; socials?: Record<string,string>
   av: string; logo?: string | null
   gradient: GradientState; country?: Country
@@ -110,7 +114,7 @@ export default function TapCardApp() {
   const [country,     setCountry]     = useState<Country>(COUNTRIES[1])
   const [showCountry, setShowCountry] = useState(false)
   const [countryQ,    setCountryQ]    = useState('')
-  const [form,        setForm]        = useState<FormState>({ name:'', role:'', company:'', email:'', phone:'', handle:'', linkedin:'' })
+  const [form,        setForm]        = useState<FormState>({ name:'', role:'', company:'', email:'', phone:'', phone2:'', website:'', address:'', handle:'', linkedin:'' })
   const [socials,     setSocials]     = useState<Record<string,string>>({})
   const [showMoreSoc, setShowMoreSoc] = useState(false)
   const [user,        setUser]        = useState<UserState | null>(null)
@@ -165,7 +169,8 @@ export default function TapCardApp() {
         setGrad(restoredGrad)
         setUser({
           name: data.name || '', role: data.role, company: data.company,
-          email: data.email, phone: data.phone, linkedin: data.linkedin,
+          email: data.email, phone: data.phone, phone2: data.phone2,
+          website: data.website, address: data.address, linkedin: data.linkedin,
           handle: data.handle, socials: data.socials || {}, av,
           logo: data.logo_url, gradient: restoredGrad,
           country: COUNTRIES.find(c => c.code === data.country_code) ?? COUNTRIES[1],
@@ -202,7 +207,8 @@ export default function TapCardApp() {
           const g = data.gradient ? makeGrad(data.gradient.c1, data.gradient.c2, data.gradient.ac) : grad
           setGrad(g)
           setUser({ name:data.name||'', role:data.role, company:data.company,
-            email:data.email, phone:data.phone, linkedin:data.linkedin,
+            email:data.email, phone:data.phone, phone2:data.phone2,
+            website:data.website, address:data.address, linkedin:data.linkedin,
             handle:data.handle, socials:data.socials||{}, av, logo:data.logo_url,
             gradient:g, country:COUNTRIES.find(c=>c.code===data.country_code)??COUNTRIES[1],
             view_count:data.view_count??0 })
@@ -289,6 +295,9 @@ export default function TapCardApp() {
           company:      form.company,
           email:        form.email,
           phone:        form.phone ? `${country.dial} ${form.phone}` : '',
+          phone2:       form.phone2,
+          website:      form.website,
+          address:      form.address,
           linkedin:     form.linkedin,
           socials,
           gradient:     { c1:grad.c1, c2:grad.c2, ac:grad.ac },
@@ -301,6 +310,7 @@ export default function TapCardApp() {
       if (res.ok) {
         setUser({ name:form.name.trim(), role:form.role, company:form.company,
           email:form.email, phone:form.phone ? `${country.dial} ${form.phone}` : '',
+          phone2:form.phone2, website:form.website, address:form.address,
           linkedin:form.linkedin, handle:data.handle, socials, av, logo:logoUrl, gradient:grad, country,
           view_count: data.view_count ?? 0 })
         localStorage.setItem('tc_handle', data.handle)
@@ -338,6 +348,9 @@ export default function TapCardApp() {
           company:      form.company,
           email:        form.email,
           phone:        form.phone ? `${country.dial} ${form.phone}` : '',
+          phone2:       form.phone2,
+          website:      form.website,
+          address:      form.address,
           linkedin:     form.linkedin,
           socials,
           gradient:     { c1:grad.c1, c2:grad.c2, ac:grad.ac },
@@ -355,6 +368,7 @@ export default function TapCardApp() {
         }
         setUser({ name:form.name.trim(), role:form.role, company:form.company,
           email:form.email, phone:form.phone ? `${country.dial} ${form.phone}` : '',
+          phone2:form.phone2, website:form.website, address:form.address,
           linkedin:form.linkedin, handle:finalHandle, socials, av, logo:logoUrl, gradient:grad, country,
           view_count: user.view_count })
         setIsEditing(false)
@@ -375,7 +389,9 @@ export default function TapCardApp() {
       ? user.phone.replace(user.country.dial + ' ', '')
       : user.phone || ''
     setForm({ name:user.name, role:user.role||'', company:user.company||'',
-      email:user.email||'', phone:phoneNum, handle:user.handle, linkedin:user.linkedin||'' })
+      email:user.email||'', phone:phoneNum, phone2:user.phone2||'',
+      website:user.website||'', address:user.address||'',
+      handle:user.handle, linkedin:user.linkedin||'' })
     setSocials(user.socials || {})
     if (user.country)   setCountry(user.country)
     if (user.gradient)  setGrad(user.gradient)
@@ -628,7 +644,7 @@ export default function TapCardApp() {
       <Section label="Contact" theme={T}>
         <TextRow type="email" placeholder="Email professionnel" value={form.email}
           onChange={v => setForm(p=>({...p,email:v}))} prefix={<Mail size={15} strokeWidth={1.5}/>} theme={T} autoComplete="email"/>
-        <Row last theme={T}>
+        <Row theme={T}>
           <div style={{ display:'flex', alignItems:'center', minHeight:46 }}>
             <button onClick={() => setShowCountry(true)} style={{
               display:'flex', alignItems:'center', gap:5, paddingRight:12,
@@ -637,13 +653,19 @@ export default function TapCardApp() {
               <span style={{ color:T.t2, fontSize:14 }}>{country.dial}</span>
               <ChevronDown size={10} color={T.t4}/>
             </button>
-            <input type="tel" placeholder="Numéro de téléphone" value={form.phone}
+            <input type="tel" placeholder="Mobile" value={form.phone}
               onChange={e => setForm(p=>({...p,phone:e.target.value}))}
               autoComplete="tel-national"
               style={{ flex:1, background:'transparent', border:'none', outline:'none', color:T.t1,
                 fontSize:15, fontFamily:OT, paddingLeft:12 }}/>
           </div>
         </Row>
+        <TextRow type="tel" placeholder="Téléphone bureau / fixe" value={form.phone2}
+          onChange={v => setForm(p=>({...p,phone2:v}))} prefix={<Phone size={15} strokeWidth={1.5}/>} theme={T} autoComplete="tel"/>
+        <TextRow type="url" placeholder="https://votre-site.fr" value={form.website}
+          onChange={v => setForm(p=>({...p,website:v}))} prefix={<Globe size={15} strokeWidth={1.5}/>} theme={T} autoComplete="url"/>
+        <TextRow placeholder="Adresse (bureau, ville…)" value={form.address}
+          onChange={v => setForm(p=>({...p,address:v}))} prefix={<MapPin size={15} strokeWidth={1.5}/>} last theme={T} autoComplete="street-address"/>
       </Section>
     )
 

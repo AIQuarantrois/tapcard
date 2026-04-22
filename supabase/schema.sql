@@ -17,6 +17,12 @@ CREATE TABLE IF NOT EXISTS cards (
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── Migration #15 — champs supplémentaires ──────────────────────────────
+-- À exécuter dans Supabase → SQL Editor si la table existe déjà
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS phone2   TEXT;
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS website  TEXT;
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS address  TEXT;
+
 -- Row Level Security
 ALTER TABLE cards ENABLE ROW LEVEL SECURITY;
 

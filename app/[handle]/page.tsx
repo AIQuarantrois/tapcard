@@ -6,7 +6,7 @@ import { getFilledSocials } from '@/lib/socials'
 import { SI } from '@/components/BusinessCard'
 import BusinessCard from '@/components/BusinessCard'
 import type { Card } from '@/lib/types'
-import { Mail, Phone } from 'lucide-react'
+import { Mail, Phone, Globe, MapPin } from 'lucide-react'
 import ShareBack from '@/components/ShareBack'
 import { BackButton, AddContactButton } from '@/components/PublicPageClient'
 
@@ -51,7 +51,7 @@ export default async function PublicCardPage({ params }: { params: { handle: str
 
   const grad     = makeGrad(card.gradient.c1, card.gradient.c2, card.gradient.ac)
   const soc      = getFilledSocials(card.linkedin, card.socials)
-  const hasContact = card.email || card.phone
+  const hasContact = card.email || card.phone || card.phone2 || card.website || card.address
 
   const OT = 'var(--font-ot), system-ui, sans-serif'
   const CG = 'var(--font-cg), Georgia, serif'
@@ -118,25 +118,27 @@ export default async function PublicCardPage({ params }: { params: { handle: str
           <div className="fu3" style={{ marginBottom:14 }}>
             <div style={{ background:'#141418', borderRadius:14, overflow:'hidden',
               border:'1px solid rgba(255,255,255,0.07)' }}>
-              {card.email && (
-                <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px',
-                  borderBottom: card.phone ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
-                  <Mail size={14} strokeWidth={1.5} color="rgba(245,245,247,0.38)"/>
-                  <a href={`mailto:${card.email}`}
-                    style={{ fontSize:14, color:'rgba(245,245,247,0.72)', textDecoration:'none' }}>
-                    {card.email}
-                  </a>
-                </div>
-              )}
-              {card.phone && (
-                <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px' }}>
-                  <Phone size={14} strokeWidth={1.5} color="rgba(245,245,247,0.38)"/>
-                  <a href={`tel:${card.phone}`}
-                    style={{ fontSize:14, color:'rgba(245,245,247,0.72)', textDecoration:'none' }}>
-                    {card.phone}
-                  </a>
-                </div>
-              )}
+              {(() => {
+                const rows = [
+                  card.email   && { icon:<Mail    size={14} strokeWidth={1.5} color="rgba(245,245,247,0.38)"/>, href:`mailto:${card.email}`,   label:card.email },
+                  card.phone   && { icon:<Phone   size={14} strokeWidth={1.5} color="rgba(245,245,247,0.38)"/>, href:`tel:${card.phone}`,       label:card.phone },
+                  card.phone2  && { icon:<Phone   size={14} strokeWidth={1.5} color="rgba(245,245,247,0.28)"/>, href:`tel:${card.phone2}`,      label:card.phone2 },
+                  card.website && { icon:<Globe   size={14} strokeWidth={1.5} color="rgba(245,245,247,0.38)"/>, href:card.website.startsWith('http') ? card.website : `https://${card.website}`, label:card.website.replace(/^https?:\/\//, '') },
+                  card.address && { icon:<MapPin  size={14} strokeWidth={1.5} color="rgba(245,245,247,0.38)"/>, href:`https://maps.google.com/?q=${encodeURIComponent(card.address)}`, label:card.address },
+                ].filter(Boolean) as { icon:React.ReactNode; href:string; label:string }[]
+                return rows.map((r, i) => (
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px',
+                    borderBottom: i < rows.length-1 ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
+                    {r.icon}
+                    <a href={r.href} target={r.href.startsWith('mailto')||r.href.startsWith('tel') ? undefined : '_blank'}
+                      rel="noopener noreferrer"
+                      style={{ fontSize:14, color:'rgba(245,245,247,0.72)', textDecoration:'none',
+                        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      {r.label}
+                    </a>
+                  </div>
+                ))
+              })()}
             </div>
           </div>
         )}

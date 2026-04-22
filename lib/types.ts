@@ -20,6 +20,9 @@ export interface Card {
   company?:     string
   email?:       string
   phone?:       string
+  phone2?:      string
+  website?:     string
+  address?:     string
   linkedin?:    string
   socials?:     Record<string, string>
   gradient:     CardGradient
