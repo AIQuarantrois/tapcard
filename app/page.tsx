@@ -1170,6 +1170,7 @@ export default function TapCardApp() {
 
     return (
       <div style={{ minHeight:'100vh', background:T.bg, fontFamily:OT, position:'relative', transition:'background .3s' }}>
+        <div style={{ maxWidth:480, margin:'0 auto', position:'relative' }}>
         {/* Nav */}
         <div style={{ padding:'52px 20px 0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div style={{ fontFamily:CG, fontSize:24, fontWeight:600, color:T.t1 }}>
@@ -1527,12 +1528,14 @@ export default function TapCardApp() {
           )}
         </div>
 
+        </div>{/* /maxWidth wrapper */}
+
         {/* Tab bar */}
         <div style={{ position:'fixed', bottom:0, left:0, right:0,
           background: dark ? 'rgba(10,10,15,.92)' : 'rgba(242,242,247,.92)',
           backdropFilter:'blur(28px) saturate(1.8)', borderTop:`1px solid ${T.sep}`,
-          padding:'11px 0 22px', display:'flex', justifyContent:'space-around', zIndex:50,
-          transition:'background .3s' }}>
+          padding:'11px 0 22px', zIndex:50, transition:'background .3s' }}>
+          <div style={{ maxWidth:480, margin:'0 auto', display:'flex', justifyContent:'space-around' }}>
           {([
             { id:'card',     l:'Carte',    ic:<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="6" width="20" height="14" rx="3"/></svg> },
             { id:'contacts', l:'Contacts', ic:<Users size={20}/> },
@@ -1546,6 +1549,7 @@ export default function TapCardApp() {
               {item.ic}<span style={{ marginTop:1 }}>{item.l}</span>
             </button>
           ))}
+          </div>{/* /maxWidth inner */}
         </div>
 
         {/* ══ SHARE SHEET ══ */}
@@ -1714,7 +1718,25 @@ export default function TapCardApp() {
             <QRScanner
               gradCss={g.css}
               onClose={() => setShowScanner(false)}
-              onResult={handle => window.open(`/${handle}`, '_blank')}
+              onResult={async scannedHandle => {
+                setShowScanner(false)
+                window.open(`/${scannedHandle}`, '_blank')
+                if (user) {
+                  try {
+                    await fetch('/api/connections', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        card_handle:    user.handle,
+                        contact_handle: scannedHandle,
+                        silent:         true,
+                      }),
+                    })
+                    setConnectionCount(c => (c ?? 0) + 1)
+                    setContactsLoaded(false)
+                  } catch { /* silent fail */ }
+                }
+              }}
             />
           </Suspense>
         )}

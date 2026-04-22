@@ -4,7 +4,7 @@ import { sendConnectionEmail } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
   try {
-    const { card_handle, contact_handle, met_location, met_note } = await req.json()
+    const { card_handle, contact_handle, met_location, met_note, silent } = await req.json()
     if (!card_handle || !contact_handle)
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     if (card_handle === contact_handle)
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     // Send notification email only on first connection, only if owner has email
     // await is intentional: serverless functions can exit before fire-and-forget completes.
     // sendConnectionEmail catches all errors internally so this never throws.
-    if (isNew && ownerCard?.email) {
+    if (isNew && ownerCard?.email && !silent) {
       await sendConnectionEmail(
         ownerCard.email,
         { name: ownerCard.name, handle: ownerCard.handle, gradient: ownerCard.gradient },
