@@ -14,6 +14,9 @@ ALTER TABLE connections ADD COLUMN IF NOT EXISTS met_note     TEXT;
 
 ALTER TABLE connections ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Public read"   ON connections;
+DROP POLICY IF EXISTS "Public insert" ON connections;
+DROP POLICY IF EXISTS "Public delete" ON connections;
 CREATE POLICY "Public read"   ON connections FOR SELECT USING (true);
 CREATE POLICY "Public insert" ON connections FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public delete" ON connections FOR DELETE USING (true);
