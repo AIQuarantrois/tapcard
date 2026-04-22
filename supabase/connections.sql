@@ -8,6 +8,10 @@ CREATE TABLE IF NOT EXISTS connections (
   UNIQUE(card_handle, contact_handle)
 );
 
+-- ── Migration #21 — lieu et circonstance de rencontre ───────────────────
+ALTER TABLE connections ADD COLUMN IF NOT EXISTS met_location TEXT;
+ALTER TABLE connections ADD COLUMN IF NOT EXISTS met_note     TEXT;
+
 ALTER TABLE connections ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Public read"   ON connections FOR SELECT USING (true);

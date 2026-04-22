@@ -4,7 +4,7 @@ import { sendConnectionEmail } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
   try {
-    const { card_handle, contact_handle } = await req.json()
+    const { card_handle, contact_handle, met_location, met_note } = await req.json()
     if (!card_handle || !contact_handle)
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     if (card_handle === contact_handle)
@@ -36,9 +36,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Handle introuvable' }, { status: 404 })
 
     // Upsert the connection
+    const upsertData: Record<string, string> = { card_handle, contact_handle }
+    if (met_location?.trim()) upsertData.met_location = met_location.trim()
+    if (met_note?.trim())     upsertData.met_note     = met_note.trim()
+
     const { error } = await supabase
       .from('connections')
-      .upsert({ card_handle, contact_handle }, { onConflict: 'card_handle,contact_handle' })
+      .upsert(upsertData, { onConflict: 'card_handle,contact_handle' })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
@@ -66,7 +70,7 @@ export async function GET(req: NextRequest) {
 
   const { data: connections, error } = await supabase
     .from('connections')
-    .select('contact_handle, met_at')
+    .select('contact_handle, met_at, met_location, met_note')
     .eq('card_handle', handle)
     .order('met_at', { ascending: false })
 
@@ -80,7 +84,10 @@ export async function GET(req: NextRequest) {
     .in('handle', handles)
 
   const result = connections.map(c => ({
-    ...c,
+    contact_handle: c.contact_handle,
+    met_at:         c.met_at,
+    met_location:   (c as Record<string,unknown>).met_location as string | undefined,
+    met_note:       (c as Record<string,unknown>).met_note     as string | undefined,
     card: cards?.find(card => card.handle === c.contact_handle) ?? null,
   }))
 

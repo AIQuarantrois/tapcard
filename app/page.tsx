@@ -41,6 +41,8 @@ interface UserState {
 interface Contact {
   contact_handle: string
   met_at: string
+  met_location?: string
+  met_note?: string
   card: { name: string; role?: string; company?: string; gradient: { c1: string; c2: string; ac: string } } | null
 }
 
@@ -1276,6 +1278,19 @@ export default function TapCardApp() {
                                 <div style={{ fontSize:12, color:T.t3, marginTop:1, fontWeight:300 }}>
                                   {[c.card?.role, c.card?.company].filter(Boolean).join(' · ') || c.contact_handle}
                                 </div>
+                                {c.met_location && (
+                                  <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:3 }}>
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                                      stroke={T.t4} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                                      <circle cx="12" cy="9" r="2.5"/>
+                                    </svg>
+                                    <span style={{ fontSize:11, color:T.t4, fontWeight:300,
+                                      overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                                      {c.met_location}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                               <div style={{ textAlign:'right', flexShrink:0 }}>
                                 <div style={{ fontSize:11, color:T.t4 }}>{formatRelative(c.met_at)}</div>
