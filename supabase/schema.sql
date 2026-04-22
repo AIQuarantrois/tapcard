@@ -30,6 +30,9 @@ ALTER TABLE cards ADD COLUMN IF NOT EXISTS address  TEXT;
 -- Row Level Security
 ALTER TABLE cards ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Public read"   ON cards;
+DROP POLICY IF EXISTS "Public insert" ON cards;
+DROP POLICY IF EXISTS "Public update" ON cards;
 CREATE POLICY "Public read"   ON cards FOR SELECT USING (true);
 CREATE POLICY "Public insert" ON cards FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public update" ON cards FOR UPDATE USING (true) WITH CHECK (true);
