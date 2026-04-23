@@ -36,20 +36,21 @@ function QRMark({ size, fill }: { size: number; fill: string }) {
 }
 
 export interface CardUser {
-  name?:     string
-  role?:     string
-  company?:  string
-  email?:    string
-  phone?:    string
-  linkedin?: string
-  socials?:  Record<string, string>
-  av?:       string
-  logo?:     string | null
-  logo_url?: string | null
-  gradient?: GradientState
-  handle?:   string
-  template?: Template
-  font?:     FontChoice
+  name?:        string
+  role?:        string
+  company?:     string
+  email?:       string
+  phone?:       string
+  linkedin?:    string
+  socials?:     Record<string, string>
+  av?:          string           // kept for backwards compat, not used on card
+  avatar_url?:  string | null    // profile photo — shown top-right if present
+  logo?:        string | null    // company logo — shown top-left if present
+  logo_url?:    string | null
+  gradient?:    GradientState
+  handle?:      string
+  template?:    Template
+  font?:        FontChoice
 }
 
 interface Props {
@@ -64,35 +65,32 @@ const SERIF = 'var(--font-cg), Georgia, serif'
 const MONO  = "'Courier New', 'SF Mono', Consolas, monospace"
 
 export default function BusinessCard({ u, grad, large = false, floating = false }: Props) {
-  const g        = u?.gradient ?? grad ?? { css:'linear-gradient(140deg,#5B21B6,#BE185D)', sh:'#5B21B680', ac:'#7C3AED', c1:'#5B21B6', c2:'#BE185D' }
-  const soc      = getFilledSocials(u?.linkedin, u?.socials)
-  const av       = u?.av ?? 'TC'
-  const logoSrc  = (u?.logo_url ?? u?.logo) ?? null
-  const tmpl     = u?.template === 'solid' ? 'solid' : 'gradient'
-  const nameFont = u?.font === 'mono' ? MONO : u?.font === 'serif' ? SERIF : SANS
+  const g       = u?.gradient ?? grad ?? { css:'linear-gradient(140deg,#5B21B6,#BE185D)', sh:'#5B21B680', ac:'#7C3AED', c1:'#5B21B6', c2:'#BE185D' }
+  const soc     = getFilledSocials(u?.linkedin, u?.socials)
+  const logoSrc = (u?.logo_url ?? u?.logo) ?? null
+  const avatarSrc = u?.avatar_url ?? null
+  const tmpl    = u?.template === 'solid' ? 'solid' : 'gradient'
+  const nameFnt = u?.font === 'mono' ? MONO : u?.font === 'serif' ? SERIF : SANS
 
-  /* ── Scale tokens — generous for readability ── */
-  const avSz   = large ? 48 : 36      // person initials — compact, right-aligned
-  const avR    = large ? 13 : 10
-  const avFs   = large ? 14 : 11
-  const nameSz = large ? 28 : 20
-  const roleSz = large ? 12 : 10
-  const metaSz = 9
-  const qrSz   = large ? 26 : 20
-  const padV   = large ? 22 : 15
-  const padH   = large ? 26 : 19
+  /* Scale tokens */
+  const photoSz = large ? 48 : 36
+  const photoR  = large ? 13 : 10
+  const nameSz  = large ? 28 : 20
+  const roleSz  = large ? 12 : 10
+  const metaSz  = 9
+  const qrSz    = large ? 26 : 20
+  const padV    = large ? 22 : 15
+  const padH    = large ? 26 : 19
+  const logoH   = large ? 26 : 19
+  const logoW   = large ? 72 : 52
 
-  /* ── Logo dimensions: top-left, landscape-friendly ── */
-  const logoH  = large ? 28 : 20      // max height for company logo
-  const logoW  = large ? 72 : 52      // max width
+  /* company — always shown regardless of logo presence */
+  const roleStr = [u?.role, u?.company].filter(Boolean).join(' · ') || (large ? '' : 'Poste · Entreprise')
 
   const shell: React.CSSProperties = {
-    width: '100%',
-    aspectRatio: '1.585',
+    width: '100%', aspectRatio: '1.585',
     borderRadius: large ? 20 : 15,
-    position: 'relative',
-    overflow: 'hidden',
-    boxSizing: 'border-box',
+    position: 'relative', overflow: 'hidden', boxSizing: 'border-box',
     boxShadow: floating
       ? `0 32px 80px ${g.sh}, 0 8px 24px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.12)`
       : `0 6px 28px ${g.sh}, 0 2px 10px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.07)`,
@@ -104,17 +102,48 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
     display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
   }
 
+  /* ── Profile photo or empty slot ── */
+  const PhotoSlot = ({ borderColor, emptyBg }: { borderColor: string; emptyBg: string }) => (
+    <div style={{
+      width: photoSz, height: photoSz, borderRadius: photoR, flexShrink: 0,
+      overflow: 'hidden',
+      background: avatarSrc ? 'transparent' : 'transparent',
+      /* Only show border ring when no photo — subtle placeholder */
+      boxShadow: avatarSrc ? 'none' : `inset 0 0 0 1.5px ${borderColor}`,
+    }}>
+      {avatarSrc && (
+        <img src={avatarSrc} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+      )}
+      {/* No initials — intentionally empty when no photo */}
+    </div>
+  )
+
+  /* ── Company logo pill ── */
+  const LogoPill = ({ bg, shadow }: { bg: string; shadow?: string }) => (
+    logoSrc ? (
+      <div style={{
+        background: bg, borderRadius: 8, padding: '4px 8px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        maxWidth: logoW, height: logoH + 8, overflow: 'hidden',
+        boxShadow: shadow,
+      }}>
+        <img src={logoSrc} alt="" style={{ height: logoH, width: 'auto', maxWidth: logoW - 16, objectFit: 'contain' }}/>
+      </div>
+    ) : (
+      <div style={{ fontSize: metaSz, fontFamily: MONO, color: 'rgba(255,255,255,.40)', letterSpacing: .6, lineHeight: 1 }}>
+        tapcard.io/{u?.handle ?? 'vous'}
+      </div>
+    )
+  )
+
   /* ══ GRADIENT ══ */
   if (tmpl === 'gradient') {
     return (
       <div className={floating ? 'flt' : ''} style={{ ...shell, background: g.css }}>
-        {/* Radial highlight top-right */}
         <div style={{ position:'absolute', top:-52, right:-52, width:200, height:200, borderRadius:'50%',
           background:'radial-gradient(circle,rgba(255,255,255,.2),transparent 62%)', pointerEvents:'none' }}/>
-        {/* Subtle bottom-left glow for depth */}
         <div style={{ position:'absolute', bottom:-40, left:-20, width:140, height:140, borderRadius:'50%',
           background:'radial-gradient(circle,rgba(0,0,0,.12),transparent 70%)', pointerEvents:'none' }}/>
-        {/* Grain */}
         <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%',
           opacity:.04, pointerEvents:'none', mixBlendMode:'overlay' as const }}>
           <filter id="tcn"><feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/></filter>
@@ -122,52 +151,29 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
         </svg>
 
         <div style={inner}>
-          {/* ── Row 1: Company logo (top-left) + person avatar (top-right) ── */}
+          {/* Row 1: logo left | photo right */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-
-            {/* Left: company logo OR handle URL */}
-            <div style={{ display:'flex', alignItems:'center', maxWidth:`calc(100% - ${avSz + 12}px)` }}>
-              {logoSrc ? (
-                /* Company logo — white pill background for legibility */
-                <div style={{ background:'rgba(255,255,255,.92)', borderRadius:8, padding:'4px 8px',
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                  maxWidth:logoW, height:logoH + 8, overflow:'hidden',
-                  boxShadow:'0 2px 8px rgba(0,0,0,.15)' }}>
-                  <img src={logoSrc} alt="" style={{ height:logoH, width:'auto', maxWidth:logoW-16, objectFit:'contain' }}/>
-                </div>
-              ) : (
-                <div style={{ fontSize:metaSz, fontFamily:MONO, color:'rgba(255,255,255,.42)',
-                  letterSpacing:.6, lineHeight:1 }}>
-                  tapcard.io/{u?.handle ?? 'vous'}
-                </div>
-              )}
-            </div>
-
-            {/* Right: person initials — always shown */}
-            <div style={{ width:avSz, height:avSz, borderRadius:avR, flexShrink:0,
-              background:'rgba(255,255,255,.18)', backdropFilter:'blur(10px)',
-              overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:avFs, fontWeight:700, color:'rgba(255,255,255,.92)', fontFamily:SANS,
-              boxShadow:'inset 0 0 0 1px rgba(255,255,255,.28)', letterSpacing:-.5 }}>
-              {av}
-            </div>
+            <LogoPill bg="rgba(255,255,255,.92)" shadow="0 2px 8px rgba(0,0,0,.15)"/>
+            <PhotoSlot
+              borderColor="rgba(255,255,255,.22)"
+              emptyBg="rgba(255,255,255,.08)"
+            />
           </div>
 
-          {/* ── Row 2: Name + role ── */}
+          {/* Row 2: Name + role · company */}
           <div>
-            <div style={{ fontFamily:nameFont, fontSize:nameSz, fontWeight:700, color:'#fff',
-              lineHeight:1.06, letterSpacing:-.3,
-              overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            <div style={{ fontFamily:nameFnt, fontSize:nameSz, fontWeight:700, color:'#fff',
+              lineHeight:1.06, letterSpacing:-.3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
               {u?.name ?? 'Votre Nom'}
             </div>
             <div style={{ marginTop:4, fontSize:roleSz, color:'rgba(255,255,255,.65)',
               fontFamily:SANS, fontWeight:400, letterSpacing:.1,
               overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-              {[u?.role, !logoSrc ? u?.company : null].filter(Boolean).join(' · ') || (large ? '' : 'Poste · Entreprise')}
+              {roleStr}
             </div>
           </div>
 
-          {/* ── Row 3: Socials + QR ── */}
+          {/* Row 3: socials + QR */}
           <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between' }}>
             <div>
               {soc.length > 0 ? (
@@ -177,8 +183,7 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
                       style={{ width:large?22:16, height:large?22:16, borderRadius:'50%',
                         background:'rgba(255,255,255,.2)', backdropFilter:'blur(4px)',
                         display:'flex', alignItems:'center', justifyContent:'center',
-                        textDecoration:'none', flexShrink:0,
-                        boxShadow:'inset 0 0 0 1px rgba(255,255,255,.18)' }}>
+                        textDecoration:'none', flexShrink:0, boxShadow:'inset 0 0 0 1px rgba(255,255,255,.18)' }}>
                       <SI id={s.id} size={large?11:9} color="rgba(255,255,255,.88)"/>
                     </a>
                   ))}
@@ -202,7 +207,6 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
   const txtMain  = autoText(bg)
   const txtSub   = isDark ? 'rgba(240,242,245,.58)' : 'rgba(17,19,24,.52)'
   const txtMut   = isDark ? 'rgba(240,242,245,.28)' : 'rgba(17,19,24,.26)'
-  const avBg     = isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.08)'
   const avBorder = isDark ? 'rgba(255,255,255,.20)' : 'rgba(0,0,0,.12)'
   const socBg    = isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.07)'
   const socIcon  = isDark ? 'rgba(255,255,255,.76)' : 'rgba(17,19,24,.60)'
@@ -219,38 +223,30 @@ export default function BusinessCard({ u, grad, large = false, floating = false 
       <div style={{ ...inner, paddingLeft: padH + 10 }}>
         {/* Row 1 */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-          <div style={{ display:'flex', alignItems:'center', maxWidth:`calc(100% - ${avSz + 12}px)` }}>
-            {logoSrc ? (
-              <div style={{ background: isDark ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.05)',
-                borderRadius:7, padding:'3px 7px', display:'flex', alignItems:'center',
-                maxWidth:logoW, height:logoH + 6, overflow:'hidden' }}>
-                <img src={logoSrc} alt="" style={{ height:logoH, width:'auto', maxWidth:logoW-14, objectFit:'contain',
-                  filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? .75 : .8 }}/>
-              </div>
-            ) : (
-              <div style={{ fontSize:metaSz, fontFamily:MONO, color:txtMut, letterSpacing:.6 }}>
-                tapcard.io/{u?.handle ?? 'vous'}
-              </div>
-            )}
-          </div>
-          <div style={{ width:avSz, height:avSz, borderRadius:avR, flexShrink:0, background:avBg,
-            overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
-            fontSize:avFs, fontWeight:700, color:txtSub, fontFamily:SANS,
-            boxShadow:`inset 0 0 0 1px ${avBorder}`, letterSpacing:-.5 }}>
-            {av}
-          </div>
+          {logoSrc ? (
+            <div style={{ background: isDark?'rgba(255,255,255,.10)':'rgba(0,0,0,.05)',
+              borderRadius:7, padding:'3px 7px', display:'flex', alignItems:'center',
+              maxWidth:logoW, height:logoH+6, overflow:'hidden' }}>
+              <img src={logoSrc} alt="" style={{ height:logoH, width:'auto', maxWidth:logoW-14, objectFit:'contain',
+                filter: isDark?'brightness(0) invert(1)':'none', opacity: isDark?.75:.8 }}/>
+            </div>
+          ) : (
+            <div style={{ fontSize:metaSz, fontFamily:MONO, color:txtMut, letterSpacing:.6 }}>
+              tapcard.io/{u?.handle ?? 'vous'}
+            </div>
+          )}
+          <PhotoSlot borderColor={avBorder} emptyBg="transparent"/>
         </div>
 
         {/* Row 2 */}
         <div>
-          <div style={{ fontFamily:nameFont, fontSize:nameSz, fontWeight:700, color:txtMain,
-            lineHeight:1.06, letterSpacing:-.3,
-            overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+          <div style={{ fontFamily:nameFnt, fontSize:nameSz, fontWeight:700, color:txtMain,
+            lineHeight:1.06, letterSpacing:-.3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
             {u?.name ?? 'Votre Nom'}
           </div>
           <div style={{ marginTop:4, fontSize:roleSz, color:txtSub, fontFamily:SANS, fontWeight:400, letterSpacing:.1,
             overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-            {[u?.role, !logoSrc ? u?.company : null].filter(Boolean).join(' · ') || (large ? '' : 'Poste · Entreprise')}
+            {roleStr}
           </div>
         </div>
 
