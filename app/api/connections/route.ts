@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase }      from '@/lib/supabase'        // lecture publique
+import { supabaseAdmin } from '@/lib/supabase-server'  // mutations
 import { sendConnectionEmail } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
@@ -10,7 +11,7 @@ export async function POST(req: NextRequest) {
     if (card_handle === contact_handle)
       return NextResponse.json({ error: 'Same handle' }, { status: 400 })
 
-    // Check whether this connection already exists (to avoid duplicate emails)
+    // Lecture → anon suffit
     const { data: existing } = await supabase
       .from('connections')
       .select('card_handle')
@@ -20,7 +21,6 @@ export async function POST(req: NextRequest) {
 
     const isNew = !existing
 
-    // Fetch both cards in parallel — we need them for the email anyway
     const [{ data: ownerCard }, { data: contactCard }] = await Promise.all([
       supabase.from('cards')
         .select('handle, name, email, gradient')
@@ -35,20 +35,17 @@ export async function POST(req: NextRequest) {
     if (!contactCard)
       return NextResponse.json({ error: 'Handle introuvable' }, { status: 404 })
 
-    // Upsert the connection
     const upsertData: Record<string, string> = { card_handle, contact_handle }
     if (met_location?.trim()) upsertData.met_location = met_location.trim()
     if (met_note?.trim())     upsertData.met_note     = met_note.trim()
 
-    const { error } = await supabase
+    // Mutation → service_role (la RLS "Public insert" ayant été supprimée)
+    const { error } = await supabaseAdmin
       .from('connections')
       .upsert(upsertData, { onConflict: 'card_handle,contact_handle' })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-    // Send notification email only on first connection, only if owner has email
-    // await is intentional: serverless functions can exit before fire-and-forget completes.
-    // sendConnectionEmail catches all errors internally so this never throws.
     if (isNew && ownerCard?.email && !silent) {
       await sendConnectionEmail(
         ownerCard.email,

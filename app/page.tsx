@@ -18,17 +18,21 @@ import type { Country } from '@/lib/countries'
 import { TEMPLATES, FONTS } from '@/lib/templates'
 import type { Template, FontChoice } from '@/lib/templates'
 import { lum, contrastRatio, autoText } from '@/lib/contrast'
+import { uploadBase64 } from '@/lib/storage'
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>
+  readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
 
 /* ─── Design tokens ─── */
-const CG  = 'var(--font-cg), Georgia, serif'    // Cormorant — landing headlines + stat numbers only
-const OT  = 'var(--font-ot), system-ui, sans-serif'  // Outfit — all UI chrome
+const CG  = 'var(--font-cg), Georgia, serif'
+const OT  = 'var(--font-ot), system-ui, sans-serif'
 
-const HDR_H = 56   // fixed header height px
-const MAX_W = 480  // left column max width
+const HDR_H = 56
+const MAX_W = 480
 
-/* Pill radius for primary buttons — the 2025 standard */
 const PILL = '100px'
-/* Circular radius for icon buttons */
 const CIRC = '50%'
 
 const SOC_FIRST  = ['twitter', 'instagram', 'tiktok']
@@ -79,7 +83,6 @@ function Section({ label, footer, children, T }: {
       )}
       <div style={{ background:T.s1, borderRadius:16, overflow:'hidden',
         border:`1px solid ${T.sep}`,
-        /* light top-border for depth on dark backgrounds */
         boxShadow: `inset 0 1px 0 rgba(255,255,255,.06)` }}>
         {children}
       </div>
@@ -129,16 +132,14 @@ function TRow({ value, onChange, type='text', placeholder, last=false, prefix, T
   )
 }
 
-function Sk({ w='100%', h=20, r=6 }:{w?:string|number;h?:number;r?:number}) {
+// FIX: r accepte string|number pour permettre '50%' (border-radius circulaire sur les skeletons)
+function Sk({ w='100%', h=20, r=6 }:{w?:string|number;h?:number;r?:number|string}) {
   return <div style={{ width:w, height:h, borderRadius:r,
     background:'rgba(255,255,255,.07)', animation:'skPulse 1.4s ease-in-out infinite' }}/>
 }
 
-/* LogoMark — swap SVG with <img src="/logo.svg" style={{height:'100%',width:'auto'}}>
-   when your asset is ready. The outer div auto-sizes to content. */
 function LogoMark({ h=32, grad }: { h?:number; grad:GradientState }) {
   return (
-    /* Width is auto — so rectangular SVG logos won't be cropped */
     <div style={{ height:h, display:'flex', alignItems:'center', flexShrink:0 }}>
       <div style={{ height:h, width:h, borderRadius:Math.round(h*.28), background:grad.css,
         display:'flex', alignItems:'center', justifyContent:'center',
@@ -158,7 +159,6 @@ function LogoMark({ h=32, grad }: { h?:number; grad:GradientState }) {
   )
 }
 
-/* ── Primary pill CTA button ── */
 function PillBtn({
   onClick, disabled=false, children, grad, dimmed=false, style: extra
 }:{
@@ -180,7 +180,6 @@ function PillBtn({
   )
 }
 
-/* ── Ghost pill button ── */
 function GhostBtn({ onClick, children, T }: {
   onClick?:()=>void; children:React.ReactNode; T:Theme
 }) {
@@ -195,7 +194,6 @@ function GhostBtn({ onClick, children, T }: {
   )
 }
 
-/* ── Circular icon button ── */
 function IconBtn({ onClick, children, T, title, active=false, activeColor }:{
   onClick?:()=>void; children:React.ReactNode; T:Theme; title?:string; active?:boolean; activeColor?:string
 }) {
@@ -225,7 +223,6 @@ export default function TapCardApp() {
   const [country,     setCountry]     = useState<Country>(COUNTRIES[1])
   const [showCountry, setShowCountry] = useState(false)
   const [countryQ,    setCountryQ]    = useState('')
-  /* P0 FIX: form state kept as a ref copy so inner functions always read latest value */
   const [form,        setForm]        = useState<FormState>({
     name:'', role:'', company:'', email:'', phone:'', phone2:'', website:'', address:'', handle:'', linkedin:''
   })
@@ -262,10 +259,10 @@ export default function TapCardApp() {
   const [authSending,    setAuthSending]    = useState(false)
   const [authSent,       setAuthSent]       = useState(false)
   const [updErr,         setUpdErr]         = useState('')
-  const [pwaPrompt,      setPwaPrompt]      = useState<any>(null)
+  // FIX: type explicite BeforeInstallPromptEvent au lieu de any
+  const [pwaPrompt,      setPwaPrompt]      = useState<BeforeInstallPromptEvent | null>(null)
   const [pwaInstalled,   setPwaInstalled]   = useState(false)
 
-  /* P0 FIX: creation guard — prevents double submit */
   const creatingRef    = useRef(false)
   const fileLogoRef    = useRef<HTMLInputElement>(null)
   const fileAvatarRef  = useRef<HTMLInputElement>(null)
@@ -300,7 +297,7 @@ export default function TapCardApp() {
   }, [])
 
   useEffect(() => {
-    const h = (e:Event) => { e.preventDefault(); setPwaPrompt(e) }
+    const h = (e:Event) => { e.preventDefault(); setPwaPrompt(e as BeforeInstallPromptEvent) }
     window.addEventListener('beforeinstallprompt', h)
     if (window.matchMedia('(display-mode: standalone)').matches) setPwaInstalled(true)
     return () => window.removeEventListener('beforeinstallprompt', h)
@@ -329,6 +326,7 @@ export default function TapCardApp() {
         view_count:d.view_count??0,template:d.template??'gradient',font:d.font??'serif' })
       setScreen('mycard')
     }).catch(()=>localStorage.removeItem('tc_handle'))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -359,6 +357,7 @@ export default function TapCardApp() {
           localStorage.setItem('tc_handle',d.handle); setScreen('mycard')
         }).catch(()=>{})
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[authUser,user])
 
   useEffect(() => {
@@ -368,6 +367,7 @@ export default function TapCardApp() {
       fetch('/api/cards',{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
         body:JSON.stringify({handle:user.handle})}).catch(()=>{})
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[authUser?.id,user?.handle])
 
   useEffect(() => {
@@ -401,10 +401,9 @@ export default function TapCardApp() {
     return ()=>clearTimeout(t)
   },[form.handle,user?.handle])
 
-  /* ── Actions — use refs to always read latest state ── */
+  /* ── Actions ── */
   const doCreate = async () => {
     const f = formRef.current
-    /* P0 FIX: guard against empty name and double-submit */
     if (!f.name.trim()) { console.warn('[doCreate] name is empty'); return }
     if (creatingRef.current) { console.warn('[doCreate] already creating'); return }
     creatingRef.current = true
@@ -440,7 +439,6 @@ export default function TapCardApp() {
           country:countryRef.current, view_count:d.view_count??0,
           template:templateRef.current, font:fontRef.current })
         setCtCount(0)
-        /* Pre-fill handle so step-2 doUpdate sees h === user.handle → skips check */
         setForm(prev => ({ ...prev, handle: d.handle }))
         setStep(2)
         window.scrollTo({ top:0, behavior:'instant' })
@@ -526,9 +524,17 @@ export default function TapCardApp() {
     if(outcome==='accepted'){setPwaInstalled(true);setPwaPrompt(null)}
   }
   const setSoc=(id:string,v:string)=>setSocials(p=>({...p,[id]:v}))
-  const handleFileChange=(setter:(v:string|null)=>void)=>(e:React.ChangeEvent<HTMLInputElement>)=>{
+  const handleFileChange=(setter:(v:string|null)=>void, bucket:'logos'|'avatars')=>(e:React.ChangeEvent<HTMLInputElement>)=>{
     const f=e.target.files?.[0]; if(!f) return
-    const r=new FileReader(); r.onload=ev=>setter(ev.target?.result as string); r.readAsDataURL(f)
+    const r=new FileReader()
+    r.onload=async(ev)=>{
+      const dataUrl = ev.target?.result as string
+      setter(dataUrl)
+      const handle = formRef.current.handle || 'tmp'
+      const url = await uploadBase64(dataUrl, bucket, handle)
+      if (url) setter(url)
+    }
+    r.readAsDataURL(f)
   }
   const applyCustom=()=>{setGrad(makeGrad(customC1,customC2,customC1));setShowCustom(false)}
   const filteredCountries=COUNTRIES.filter(c=>!countryQ||c.name.toLowerCase().includes(countryQ.toLowerCase())||c.dial.includes(countryQ))
@@ -552,11 +558,9 @@ export default function TapCardApp() {
             <ArrowLeft size={15}/>
           </IconBtn>
         ) : (
-          /* Logo — height fixed, width auto — never crops rectangular logos */
           <LogoMark h={34} grad={user?.gradient??grad}/>
         )}
 
-        {/* Title */}
         {(title||subtitle) && !navItems && (
           <div style={{ flex:1 }}>
             {title && (
@@ -573,7 +577,6 @@ export default function TapCardApp() {
           </div>
         )}
 
-        {/* Desktop nav */}
         {navItems && onNav && (
           <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:2 }}>
             {navItems.map(item=>(
@@ -590,7 +593,6 @@ export default function TapCardApp() {
         )}
         {!navItems && !title && <div style={{ flex:1 }}/>}
 
-        {/* Right actions */}
         <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
           {actions}
           {pwaPrompt&&!pwaInstalled&&(
@@ -613,12 +615,10 @@ export default function TapCardApp() {
     </>
   )
 
-  /* ── Color picker (label "Couleur") ── */
   const ColorPicker=()=>(
     <div style={{ background:T.s1, borderRadius:16, overflow:'hidden', border:`1px solid ${T.sep}`, marginBottom:28,
       boxShadow:'inset 0 1px 0 rgba(255,255,255,.06)' }}>
       <div style={{ padding:'12px 16px 10px', borderBottom:`1px solid ${T.sep}` }}>
-        {/* P1: label shortened to "Couleur" */}
         <div style={{ fontFamily:OT, fontSize:11, fontWeight:600, color:T.t3, letterSpacing:.8, textTransform:'uppercase' }}>Couleur</div>
       </div>
       <div style={{ display:'flex', gap:10, padding:'14px 16px', borderBottom:showCustom?`1px solid ${T.sep}`:'none' }}>
@@ -713,16 +713,17 @@ export default function TapCardApp() {
     </div>
   )
 
-  /* ── Identity upload rows — called as {X()} to preserve input focus ── */
   const LogoRow=()=>(
     <Row T={T}>
       <div style={{display:'flex',alignItems:'center',minHeight:66,gap:16}}>
-        <input type="file" accept="image/*" ref={fileLogoRef} style={{display:'none'}} onChange={handleFileChange(setLogoUrl)}/>
+        <input type="file" accept="image/*" ref={fileLogoRef} style={{display:'none'}} onChange={handleFileChange(setLogoUrl, 'logos')}/>
         <button onClick={()=>fileLogoRef.current?.click()} style={{
           width:56,height:56,borderRadius:14,flexShrink:0,
           background:logoUrl?'transparent':T.s2,border:`2px dashed ${logoUrl?'transparent':T.sepS}`,
           overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .18s'}}>
-          {logoUrl?<img src={logoUrl} alt="" style={{width:'100%',height:'100%',objectFit:'contain'}}/>
+          {logoUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ?<img src={logoUrl} alt="" style={{width:'100%',height:'100%',objectFit:'contain'}}/>
             :<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.t3} strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5" fill={T.t3} stroke="none"/><path d="M21 15l-5-5L5 21"/></svg>}
         </button>
         <div style={{flex:1}}>
@@ -740,12 +741,14 @@ export default function TapCardApp() {
   const AvatarRow=()=>(
     <Row last T={T}>
       <div style={{display:'flex',alignItems:'center',minHeight:66,gap:16}}>
-        <input type="file" accept="image/*" ref={fileAvatarRef} style={{display:'none'}} onChange={handleFileChange(setAvatarUrl)}/>
+        <input type="file" accept="image/*" ref={fileAvatarRef} style={{display:'none'}} onChange={handleFileChange(setAvatarUrl, 'avatars')}/>
         <button onClick={()=>fileAvatarRef.current?.click()} style={{
           width:56,height:56,borderRadius:'50%',flexShrink:0,
           background:avatarUrl?'transparent':T.s2,border:`2px dashed ${avatarUrl?'transparent':T.sepS}`,
           overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .18s'}}>
-          {avatarUrl?<img src={avatarUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+          {avatarUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ?<img src={avatarUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
             :<Camera size={20} color={T.t3} strokeWidth={1.5}/>}
         </button>
         <div style={{flex:1}}>
@@ -892,9 +895,13 @@ export default function TapCardApp() {
 
   /* ══ LANDING ══ */
   if(screen==='landing'){
-    const demo={name:'Sophie Martin',role:'Directrice Marketing',company:'Nexora',
-      avatar_url:null,logo:null,gradient:grad,handle:'sophiemartin',
-      socials:{linkedin:'1',twitter:'1'},linkedin:'1'}
+    // FIX: type explicite pour demo — évite le cast 'as any' sur BusinessCard
+    const demo: Parameters<typeof BusinessCard>[0]['u'] = {
+      name:'Sophie Martin', role:'Directrice Marketing', company:'Nexora',
+      avatar_url:null, logo:undefined, gradient:grad, handle:'sophiemartin',
+      socials:{linkedin:'1',twitter:'1'}, linkedin:'1',
+      av:'SM',
+    }
     return (
       <div style={{minHeight:'100vh',...bgS,fontFamily:OT,position:'relative',overflow:'hidden'}}>
         <Orbs/>
@@ -941,14 +948,15 @@ export default function TapCardApp() {
           </div>
           {isDesktop&&(
             <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:`${HDR_H+60}px 48px 60px`,gap:28}}>
-              <div style={{width:'100%',maxWidth:380}}><BusinessCard u={demo as any} large floating/></div>
+              {/* FIX: plus de cast 'as any' — demo est typé correctement ci-dessus */}
+              <div style={{width:'100%',maxWidth:380}}><BusinessCard u={demo} large floating/></div>
               <div style={{fontSize:12,color:T.t4,fontWeight:400,letterSpacing:.5,textAlign:'center'}}>Aperçu · personnalisable en quelques secondes</div>
             </div>
           )}
         </div>
         {!isDesktop&&(
           <div style={{position:'relative',zIndex:1,padding:'0 24px 64px'}}>
-            <BusinessCard u={demo as any} large/>
+            <BusinessCard u={demo} large/>
             <div style={{marginTop:12,fontSize:11,color:T.t4,fontWeight:400,textAlign:'center'}}>Aperçu · personnalisable en quelques secondes</div>
           </div>
         )}
@@ -978,7 +986,6 @@ export default function TapCardApp() {
         {/* ══ STEP 1 ══ */}
         {!isEditing&&step===1&&(
           <>
-            {/* P1 FIX: progress bar has its own margin, not inheriting from ColorPicker */}
             {ColorPicker()}
             <div className="fu2">
               <Section label="Identité" T={T}>
@@ -993,7 +1000,6 @@ export default function TapCardApp() {
                 <TRow placeholder="Entreprise"     value={form.company} onChange={v=>setForm(p=>({...p,company:v}))} last T={T} autoComplete="organization" maxLength={60}/>
               </Section>
             </div>
-            {/* P0 FIX: button uses doCreate directly, not wrapped */}
             <PillBtn onClick={doCreate} disabled={!form.name.trim()||creating} grad={grad} dimmed={!form.name.trim()}>
               {creating ? (
                 <span style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
@@ -1113,7 +1119,6 @@ export default function TapCardApp() {
           <div style={{display:'flex',minHeight:'100vh',position:'relative',zIndex:1}}>
             <div style={{width:MAX_W,flexShrink:0,overflowY:'auto',height:'100vh',borderRight:`1px solid ${T.sep}`,paddingTop:HDR_H}}>
               {!isEditing&&(
-                /* P1 FIX: progress bar separated — paddingTop gives breathing room */
                 <div style={{padding:'16px 40px 0',display:'flex',gap:5}}>
                   {[s1ok,s2ok].map((ok,i)=>(
                     <div key={i} style={{flex:1,height:3,borderRadius:PILL,transition:'background .4s',
@@ -1305,7 +1310,6 @@ export default function TapCardApp() {
           )
         })}
 
-        {/* Desktop right panel */}
         {isDesktop&&(
           <div style={{position:'fixed',top:HDR_H,bottom:0,left:MAX_W,right:0,zIndex:1,
             display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
@@ -1336,12 +1340,10 @@ export default function TapCardApp() {
           </div>
         )}
 
-        {/* Main column */}
         <div style={{maxWidth:MAX_W,position:'relative',zIndex:1,height:isDesktop?'100vh':undefined,overflowY:isDesktop?'auto':undefined,paddingTop:HDR_H,paddingBottom:isDesktop?0:88}}>
 
           {nav==='card'&&(
             <div style={{padding:'24px 16px'}}>
-              {/* Stats */}
               <div className="fu1" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:22}}>
                 {[
                   {l:'Vues',    v:u.view_count!=null?String(u.view_count):null},
@@ -1369,7 +1371,6 @@ export default function TapCardApp() {
                 </div>
               )}
 
-              {/* Share CTA */}
               <div className="fu4" style={{marginBottom:14}}>
                 <div style={{position:'relative'}}>
                   <div style={{position:'absolute',inset:-10,borderRadius:PILL,background:g.sh.replace('80','28'),animation:'pulse 2.4s ease-out infinite'}}/>
@@ -1381,7 +1382,6 @@ export default function TapCardApp() {
                 </div>
               </div>
 
-              {/* QR/Lien/NFC — mobile only */}
               {!isDesktop&&(
                 <div className="fu5" style={{display:'flex',gap:8}}>
                   {[{l:'QR Code',s:'qr'},{l:'Lien',s:'link'},{l:'NFC',s:'nfc'}].map(b=>(
@@ -1396,7 +1396,6 @@ export default function TapCardApp() {
             </div>
           )}
 
-          {/* ─ CONTACTS ─ */}
           {nav==='contacts'&&(()=>{
             const q=ctSearch.trim().toLowerCase()
             const filtered=contacts
@@ -1439,7 +1438,8 @@ export default function TapCardApp() {
                   </div>
                 )}
 
-                {!ctLoaded&&<div style={{display:'flex',flexDirection:'column',gap:10}}>{[1,2,3].map(i=><div key={i} style={{display:'flex',alignItems:'center',gap:14,padding:'14px 0'}}><Sk w={44} h={44} r={'50%' as any}/><div style={{flex:1,display:'flex',flexDirection:'column',gap:6}}><Sk w="60%" h={14} r={4}/><Sk w="40%" h={11} r={3}/></div></div>)}</div>}
+                {/* FIX: Sk r accepte string|number — '50%' est valide sans cast */}
+                {!ctLoaded&&<div style={{display:'flex',flexDirection:'column',gap:10}}>{[1,2,3].map(i=><div key={i} style={{display:'flex',alignItems:'center',gap:14,padding:'14px 0'}}><Sk w={44} h={44} r='50%'/><div style={{flex:1,display:'flex',flexDirection:'column',gap:6}}><Sk w="60%" h={14} r={4}/><Sk w="40%" h={11} r={3}/></div></div>)}</div>}
                 {ctLoaded&&contacts.length===0&&<div style={{textAlign:'center',padding:'48px 20px'}}><div style={{fontSize:36,marginBottom:14}}>🤝</div><div style={{fontSize:16,color:T.t1,fontWeight:700,marginBottom:8}}>Aucune connexion</div><div style={{fontSize:14,color:T.t3,lineHeight:1.75,fontWeight:400}}>Partagez votre carte pour recevoir des connexions en retour.</div></div>}
                 {ctLoaded&&contacts.length>0&&filtered.length===0&&<div style={{textAlign:'center',padding:'32px 20px',color:T.t3,fontSize:14,fontWeight:400}}>Aucun résultat pour « {ctSearch} »</div>}
                 {ctLoaded&&visible.length>0&&(
@@ -1477,7 +1477,6 @@ export default function TapCardApp() {
             )
           })()}
 
-          {/* ─ PROFIL ─ */}
           {nav==='profil'&&(
             <div style={{padding:'24px 16px'}}>
               <div style={{fontFamily:OT,fontSize:28,fontWeight:700,color:T.t1,letterSpacing:-.5,marginBottom:22}}>Profil</div>
@@ -1512,7 +1511,6 @@ export default function TapCardApp() {
           )}
         </div>
 
-        {/* Mobile tab bar */}
         {!isDesktop&&(
           <div style={{position:'fixed',bottom:0,left:0,right:0,background:dark?'rgba(10,10,15,.92)':'rgba(242,242,247,.92)',backdropFilter:'blur(28px) saturate(1.8)',borderTop:`1px solid ${T.sep}`,padding:'11px 0 22px',zIndex:50,transition:'background .25s'}}>
             <div style={{display:'flex',justifyContent:'space-around'}}>
@@ -1525,7 +1523,6 @@ export default function TapCardApp() {
           </div>
         )}
 
-        {/* Mobile share sheet */}
         {!isDesktop&&share&&(
           <div className="fi" style={{position:'fixed',inset:0,background:'rgba(0,0,0,.55)',zIndex:100}}>
             <div onClick={()=>setShare(false)} style={{position:'absolute',inset:0}}/>
@@ -1542,7 +1539,6 @@ export default function TapCardApp() {
           </div>
         )}
 
-        {/* QR Scanner */}
         {showScan&&(
           <Suspense fallback={null}>
             <QRScanner gradCss={g.css} onClose={()=>setShowScan(false)}

@@ -14,8 +14,8 @@ export async function GET(req: NextRequest) {
 
   /* QR mark unit — scales with icon size */
   const u  = inner * 0.12   // cell size
-  const cx = pad + inner / 2
-  const cy = pad + inner / 2
+  //const _cx = pad + inner / 2
+  //const _cy = pad + inner / 2
 
   return new ImageResponse(
     (

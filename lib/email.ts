@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { supabaseAdmin } from '@/lib/supabase-server'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 const FROM   = process.env.RESEND_FROM ?? 'TapCard <noreply@tapcard.io>'
@@ -14,17 +15,26 @@ interface ContactCard {
 
 export async function sendConnectionEmail(
   toEmail:  string,
-  owner:    ContactCard,   // card owner (recipient)
-  contact:  ContactCard,   // visitor who shared back
+  owner:    ContactCard,
+  contact:  ContactCard,
 ): Promise<void> {
-  if (!process.env.RESEND_API_KEY) return   // silently skip if not configured
+  if (!process.env.RESEND_API_KEY) return
+
+  // Vérifie si l'email est désabonné avant d'envoyer
+  const { data: unsub } = await supabaseAdmin
+    .from('unsubscribed')
+    .select('email')
+    .eq('email', toEmail.toLowerCase().trim())
+    .maybeSingle()
+  if (unsub) return  // silencieux — ne pas révéler que l'email est connu
 
   const c1   = contact.gradient?.c1 ?? '#6D28D9'
   const c2   = contact.gradient?.c2 ?? '#DB2777'
   const grad = `linear-gradient(140deg, ${c1}, ${c2})`
-  const contactUrl = `${APP}/${contact.handle}`
-  const initials   = contact.name.split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || 'TC'
-  const subtitle   = [contact.role, contact.company].filter(Boolean).join(' · ')
+  const contactUrl    = `${APP}/${contact.handle}`
+  const unsubscribeUrl = `${APP}/api/unsubscribe?email=${encodeURIComponent(toEmail)}`
+  const initials      = contact.name.split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || 'TC'
+  const subtitle      = [contact.role, contact.company].filter(Boolean).join(' · ')
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -38,7 +48,7 @@ export async function sendConnectionEmail(
     <tr><td align="center">
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
 
-        <!-- Logo / header -->
+        <!-- Header -->
         <tr><td style="padding-bottom:24px;text-align:center;">
           <span style="font-size:11px;font-weight:400;letter-spacing:2px;text-transform:uppercase;color:#8E8E93;">
             TAPCARD · ONE TAP. REAL CONNECTION.
@@ -59,7 +69,6 @@ export async function sendConnectionEmail(
                   </td>
                   <td width="52" style="vertical-align:top;padding-left:12px;">
                     <div style="width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.22);
-                      display:flex;align-items:center;justify-content:center;
                       font-family:Georgia,serif;font-size:18px;font-weight:700;color:#fff;
                       text-align:center;line-height:52px;">${escHtml(initials)}</div>
                   </td>
@@ -73,7 +82,7 @@ export async function sendConnectionEmail(
         </td></tr>
 
         <!-- Main message -->
-        <tr><td style="background:#fff;border-radius:16px;padding:28px 24px;margin-bottom:12px;">
+        <tr><td style="background:#fff;border-radius:16px;padding:28px 24px;">
           <p style="margin:0 0 8px;font-size:22px;font-weight:600;color:#1C1C1E;letter-spacing:-0.3px;">
             Nouvelle connexion 🎉
           </p>
@@ -97,10 +106,15 @@ export async function sendConnectionEmail(
 
         <!-- Footer -->
         <tr><td style="padding:20px 0 0;text-align:center;">
-          <p style="margin:0;font-size:11px;color:#AEAEB2;line-height:1.7;">
+          <p style="margin:0 0 8px;font-size:11px;color:#AEAEB2;line-height:1.7;">
             Tu reçois cet email car quelqu'un a partagé sa carte avec toi via
             <a href="${APP}" style="color:#AEAEB2;">tapcard.io</a>.<br/>
             Carte : <a href="${APP}/${owner.handle}" style="color:#AEAEB2;">tapcard.io/${escHtml(owner.handle)}</a>
+          </p>
+          <p style="margin:0;font-size:11px;color:#AEAEB2;">
+            <a href="${unsubscribeUrl}" style="color:#AEAEB2;text-decoration:underline;">
+              Se désabonner des notifications
+            </a>
           </p>
         </td></tr>
 
@@ -119,7 +133,7 @@ export async function sendConnectionEmail(
     })
   } catch (err) {
     console.error('[sendConnectionEmail]', err)
-    // Never throw — email failure must not break the connection creation
+    // Ne jamais throw — un échec email ne doit pas bloquer la création de connexion
   }
 }
 
