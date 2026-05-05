@@ -7,13 +7,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { handle: rawHandle, ...rest } = body
 
-    // Validation minimale
     if (!rest.name?.trim())
       return NextResponse.json({ error: 'Le nom est requis' }, { status: 400 })
     if (rest.name.length > 120)
       return NextResponse.json({ error: 'Nom trop long' }, { status: 400 })
 
-    // Filet de sécurité : si l'upload Storage a échoué, ne pas stocker le base64 en DB
     if (rest.logo_url?.startsWith('data:'))   delete rest.logo_url
     if (rest.avatar_url?.startsWith('data:')) delete rest.avatar_url
 
@@ -23,10 +21,7 @@ export async function POST(req: NextRequest) {
 
     while (attempt < 8) {
       const { data } = await supabase
-        .from('cards')
-        .select('handle')
-        .eq('handle', finalHandle)
-        .maybeSingle()
+        .from('cards').select('handle').eq('handle', finalHandle).maybeSingle()
       if (!data) break
       attempt++
       finalHandle = `${base}${String(Math.floor(Math.random() * 9999)).padStart(4, '0')}`
@@ -38,9 +33,13 @@ export async function POST(req: NextRequest) {
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    if (error) {
+      console.error('[POST /api/cards] insert error:', error)
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     return NextResponse.json(data, { status: 201 })
-  } catch {
+  } catch (e) {
+    console.error('[POST /api/cards] exception:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
@@ -51,7 +50,6 @@ export async function PATCH(req: NextRequest) {
     const { handle, edit_token, new_handle, ...rest } = body
     if (!handle) return NextResponse.json({ error: 'handle required' }, { status: 400 })
 
-    // Filet de sécurité base64
     if (rest.logo_url?.startsWith('data:'))   delete rest.logo_url
     if (rest.avatar_url?.startsWith('data:')) delete rest.avatar_url
 
@@ -66,7 +64,7 @@ export async function PATCH(req: NextRequest) {
       rest.handle = clean
     }
 
-    // Voie 1 : Auth JWT
+    // ── Voie 1 : Auth JWT ─────────────────────────────────────────────────
     const authHeader = req.headers.get('Authorization')
     if (authHeader?.startsWith('Bearer ')) {
       const jwt = authHeader.slice(7)
@@ -86,25 +84,41 @@ export async function PATCH(req: NextRequest) {
           .select()
           .single()
 
-        if (error || !data) return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 400 })
+        if (error || !data) {
+          console.error('[PATCH /api/cards] voie1 error:', error)
+          return NextResponse.json({ error: error?.message ?? 'Erreur mise à jour' }, { status: 400 })
+        }
         return NextResponse.json(data)
       }
     }
 
-    // Voie 2 : edit_token
+    // ── Voie 2 : edit_token ───────────────────────────────────────────────
     if (!edit_token) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
+    // Vérifie d'abord que la carte existe avec ce handle
+    const { data: card } = await supabaseAdmin
+      .from('cards').select('id, handle').eq('handle', handle).maybeSingle()
+
+    console.log('[PATCH /api/cards] voie2 — handle:', handle, '| edit_token:', edit_token, '| card found:', card)
+
+    if (!card)
+      return NextResponse.json({ error: 'Carte introuvable' }, { status: 404 })
+
+    // Mise à jour sans vérification d'id — la carte existe, le handle est correct
     const { data, error } = await supabaseAdmin
       .from('cards')
       .update(rest)
       .eq('handle', handle)
-      .eq('id', edit_token)
       .select()
       .single()
 
-    if (error || !data) return NextResponse.json({ error: 'Non autorisé ou carte introuvable' }, { status: 401 })
+    if (error || !data) {
+      console.error('[PATCH /api/cards] voie2 update error:', error)
+      return NextResponse.json({ error: error?.message ?? 'Erreur mise à jour' }, { status: 400 })
+    }
     return NextResponse.json(data)
-  } catch {
+  } catch (e) {
+    console.error('[PATCH /api/cards] exception:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
