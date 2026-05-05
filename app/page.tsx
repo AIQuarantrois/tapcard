@@ -905,13 +905,15 @@ export default function TapCardApp() {
     return (
       <div style={{minHeight:'100vh',...bgS,fontFamily:OT,position:'relative',overflow:'hidden'}}>
         <Orbs/>
-        {AppHeader({borderless:true,actions:(
+        {/*{AppHeader({borderless:true,actions:(
           <button onClick={()=>{setAuthSent(false);setScreen('auth')}}
             style={{background:T.t5,border:`1px solid ${T.sep}`,borderRadius:PILL,
               padding:'6px 16px',color:T.t2,fontSize:13,fontFamily:OT,fontWeight:500}}>
             Se connecter
           </button>
-        )})}
+        )})}*/}
+        {AppHeader({borderless:true})}
+        
         <div style={{display:'flex',minHeight:'100vh',position:'relative',zIndex:1}}>
           <div style={{width:isDesktop?MAX_W:'100%',flexShrink:0,display:'flex',flexDirection:'column',
             justifyContent:'flex-start',padding:isDesktop?`${HDR_H+52}px 48px 60px`:`${HDR_H+40}px 24px 32px`,

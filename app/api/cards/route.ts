@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase }      from '@/lib/supabase'        // lecture publique (anon key)
-import { supabaseAdmin } from '@/lib/supabase-server'  // mutations (service_role key)
+import { supabase }      from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-server'
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,11 +13,14 @@ export async function POST(req: NextRequest) {
     if (rest.name.length > 120)
       return NextResponse.json({ error: 'Nom trop long' }, { status: 400 })
 
+    // Filet de sécurité : si l'upload Storage a échoué, ne pas stocker le base64 en DB
+    if (rest.logo_url?.startsWith('data:'))   delete rest.logo_url
+    if (rest.avatar_url?.startsWith('data:')) delete rest.avatar_url
+
     const base = (rawHandle || 'card').toLowerCase().replace(/[^a-z0-9-]/g, '') || 'card'
     let finalHandle = base
     let attempt = 0
 
-    // Lecture seule → clé anon suffit
     while (attempt < 8) {
       const { data } = await supabase
         .from('cards')
@@ -29,7 +32,6 @@ export async function POST(req: NextRequest) {
       finalHandle = `${base}${String(Math.floor(Math.random() * 9999)).padStart(4, '0')}`
     }
 
-    // Insertion → service_role (bypasse la RLS restreinte)
     const { data, error } = await supabaseAdmin
       .from('cards')
       .insert({ handle: finalHandle, ...rest })
@@ -49,12 +51,14 @@ export async function PATCH(req: NextRequest) {
     const { handle, edit_token, new_handle, ...rest } = body
     if (!handle) return NextResponse.json({ error: 'handle required' }, { status: 400 })
 
-    // Validation renommage
+    // Filet de sécurité base64
+    if (rest.logo_url?.startsWith('data:'))   delete rest.logo_url
+    if (rest.avatar_url?.startsWith('data:')) delete rest.avatar_url
+
     if (new_handle && new_handle !== handle) {
       const clean = new_handle.toLowerCase().replace(/[^a-z0-9-]/g, '')
       if (clean.length < 2)
         return NextResponse.json({ error: 'Handle trop court (minimum 2 caractères)' }, { status: 400 })
-      // Lecture → anon
       const { data: taken } = await supabase
         .from('cards').select('handle').eq('handle', clean).maybeSingle()
       if (taken)
@@ -62,23 +66,19 @@ export async function PATCH(req: NextRequest) {
       rest.handle = clean
     }
 
-    // ── Voie 1 : Auth JWT (utilisateur connecté) ─────────────────────────
+    // Voie 1 : Auth JWT
     const authHeader = req.headers.get('Authorization')
     if (authHeader?.startsWith('Bearer ')) {
       const jwt = authHeader.slice(7)
-      // Vérifie le JWT avec le client anon (pas besoin de service_role ici)
       const { data: { user } } = await supabase.auth.getUser(jwt)
 
       if (user) {
-        // Lecture de la carte pour vérifier le propriétaire
         const { data: existing } = await supabase
           .from('cards').select('user_id, id').eq('handle', handle).single()
 
         if (existing?.user_id && existing.user_id !== user.id)
           return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
-        // Mutation → service_role (la policy "Owner update" suffirait,
-        // mais on utilise l'admin pour les cartes sans user_id encore non-revendiquées)
         const { data, error } = await supabaseAdmin
           .from('cards')
           .update({ ...rest, user_id: user.id })
@@ -91,15 +91,14 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // ── Voie 2 : edit_token (cartes non revendiquées, sans compte) ────────
+    // Voie 2 : edit_token
     if (!edit_token) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
-    // L'admin vérifie que l'id correspond bien au handle — c'est le "token" implicite
     const { data, error } = await supabaseAdmin
       .from('cards')
       .update(rest)
       .eq('handle', handle)
-      .eq('id', edit_token)     // seul le vrai détenteur de l'id peut modifier
+      .eq('id', edit_token)
       .select()
       .single()
 
@@ -114,7 +113,6 @@ export async function GET(req: NextRequest) {
   const handle = req.nextUrl.searchParams.get('handle')
   if (!handle) return NextResponse.json({ error: 'handle required' }, { status: 400 })
 
-  // Cas spécial : carte de l'utilisateur connecté
   if (handle === 'me') {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader?.startsWith('Bearer '))
@@ -131,7 +129,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data)
   }
 
-  // Lecture publique → anon key
   const { data, error } = await supabase
     .from('cards').select('*').eq('handle', handle).single()
 

@@ -1,19 +1,16 @@
 /**
  * lib/storage.ts
- * Helper côté CLIENT pour uploader logo et avatar vers Supabase Storage.
- * Remplace le stockage en base64 dans PostgreSQL.
- *
- * Prérequis Supabase (à faire une fois dans le dashboard) :
- *   Storage → New bucket → "avatars"  → Public : ✅
- *   Storage → New bucket → "logos"    → Public : ✅
+ * Helper côté CLIENT pour uploader logo et avatar.
+ * Route les uploads via /api/upload (service_role key côté serveur)
+ * au lieu d'appeler Supabase Storage directement depuis le navigateur
+ * (ce qui déclenchait une erreur RLS avec la clé anon).
  */
-import { supabaseBrowser } from '@/lib/supabase-browser'
 
 type BucketName = 'avatars' | 'logos'
 
 /**
- * Convertit un File (ou blob) en URL publique Supabase Storage.
- * Retourne null en cas d'échec (non bloquant — l'upload de la carte continue).
+ * Uploade un File ou Blob via /api/upload et retourne l'URL publique.
+ * Retourne null en cas d'échec — non bloquant pour la création de carte.
  */
 export async function uploadImage(
   file: File | Blob,
@@ -21,21 +18,18 @@ export async function uploadImage(
   handle: string,
 ): Promise<string | null> {
   try {
-    // Génère un nom de fichier stable et sans collision
-    const ext  = file instanceof File ? file.name.split('.').pop() ?? 'jpg' : 'jpg'
-    const path = `${handle}-${Date.now()}.${ext}`
+    const form = new FormData()
+    form.append('file', file instanceof File ? file : new File([file], 'upload.jpg', { type: file.type }))
+    form.append('bucket', bucket)
+    form.append('handle', handle)
 
-    const { error: upErr } = await supabaseBrowser.storage
-      .from(bucket)
-      .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' })
-
-    if (upErr) {
-      console.error(`[storage] upload ${bucket}/${path}`, upErr.message)
+    const res = await fetch('/api/upload', { method: 'POST', body: form })
+    if (!res.ok) {
+      console.error(`[storage] upload ${bucket} failed:`, res.status)
       return null
     }
-
-    const { data } = supabaseBrowser.storage.from(bucket).getPublicUrl(path)
-    return data.publicUrl
+    const data = await res.json()
+    return data.url ?? null
   } catch (err) {
     console.error('[storage] unexpected error', err)
     return null
@@ -43,8 +37,8 @@ export async function uploadImage(
 }
 
 /**
- * Convertit une data-URL base64 en Blob puis l'uploade.
- * Utile pour les FileReader.readAsDataURL() existants dans page.tsx.
+ * Convertit une data-URL base64 en Blob puis l'uploade via /api/upload.
+ * Compatible avec les FileReader.readAsDataURL() existants dans page.tsx.
  */
 export async function uploadBase64(
   dataUrl: string,
@@ -58,7 +52,8 @@ export async function uploadBase64(
     const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
     const blob  = new Blob([bytes], { type: mime })
     return uploadImage(blob, bucket, handle)
-  } catch {
+  } catch (err) {
+    console.error('[storage] base64 conversion error', err)
     return null
   }
 }
